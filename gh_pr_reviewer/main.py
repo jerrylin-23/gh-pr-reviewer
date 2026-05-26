@@ -30,7 +30,7 @@ from rich.panel import Panel
 
 app = typer.Typer(
     name="pr-reviewer",
-    help="AI-powered GitHub PR reviewer using Claude/Antigravity CLI + GitHub CLI.",
+    help="AI-powered GitHub PR reviewer using Claude/Antigravity/Codex CLI + GitHub CLI.",
     add_completion=False,
     rich_markup_mode="rich",
 )
@@ -42,6 +42,7 @@ console = Console()
 class Provider(str, Enum):
     claude = "claude"
     antigravity = "antigravity"
+    codex = "codex"
 
 
 REVIEW_PROMPT = textwrap.dedent("""\
@@ -258,7 +259,7 @@ def _run_ai_cli(provider: Provider, prompt: str) -> str:
                     "Install Claude Code: [link=https://docs.anthropic.com/en/docs/claude-code]"
                     "https://docs.anthropic.com/en/docs/claude-code[/link]"
                     if provider == Provider.claude
-                    else "Install Antigravity CLI from your internal tooling."
+                    else "Install the required CLI tool."
                 ),
                 title="⚠️  Missing CLI",
             )
@@ -347,8 +348,8 @@ def review(
     """
     🔍 Review a GitHub Pull Request with AI.
 
-    Fetches the diff using the GitHub CLI, analyses it with Claude or
-    Antigravity, and optionally posts the review back to the PR.
+    Fetches the diff using the GitHub CLI, analyses it with Claude,
+    Antigravity, or Codex, and optionally posts the review back to the PR.
     """
     # 0. Ensure authenticated
     ensure_gh_auth()

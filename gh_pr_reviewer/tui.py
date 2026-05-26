@@ -62,6 +62,7 @@ REVIEW_PROMPT = textwrap.dedent("""\
 PROVIDERS = [
     ("Claude CLI", "claude"),
     ("Antigravity CLI", "antigravity"),
+    ("Codex CLI", "codex"),
 ]
 
 # ─── Stylesheet ──────────────────────────────────────────────────────────────
@@ -388,7 +389,7 @@ def call_ai_cli(provider: str, diff_text: str) -> tuple[bool, str]:
         hint = (
             "Install Claude Code: https://docs.anthropic.com/en/docs/claude-code"
             if provider == "claude"
-            else "Install Antigravity CLI from your internal tooling."
+            else "Make sure the CLI tool is installed and in your PATH."
         )
         return False, f"{provider} CLI not found.\n{hint}"
     except subprocess.CalledProcessError as exc:
