@@ -1,6 +1,6 @@
 # Agentic GitHub PR Reviewer
 
-A terminal-based Dashboard (TUI) and CLI for reviewing GitHub Pull Requests using local AI agents (`claude` or `antigravity`). 
+A terminal-based Dashboard (TUI) and CLI for reviewing GitHub Pull Requests using local AI agents (`claude` or `antigravity and codex`). 
 
 Fetch PRs, generate comprehensive markdown reviews using AI, and post them directly back to GitHub without ever leaving your terminal or messing with API keys.
 
