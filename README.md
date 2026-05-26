@@ -6,6 +6,9 @@ Fetch PRs, generate comprehensive markdown reviews using AI, and post them direc
 
 ## Features
 
+<img width="1333" height="492" alt="image" src="https://github.com/user-attachments/assets/c700847e-1fde-491d-ada1-0f637c853970" />
+
+
 - **Interactive TUI Dashboard**: Built with [Textual](https://textual.textualize.io/), featuring asynchronous non-blocking workers.
 - **Auto-Complete**: Live search and auto-complete for your GitHub repositories and open PRs.
 - **Native GitHub Auth**: Seamlessly integrates with the `gh` CLI. Triggers `gh auth login --web` directly from the UI if you aren't authenticated.
