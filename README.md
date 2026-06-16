@@ -1,6 +1,7 @@
 # Agentic GitHub PR Reviewer
 
 An AI-powered GitHub Pull Request reviewer. It provides a visual **Desktop GUI App** (macOS DMG), an **Interactive TUI Dashboard** (Terminal), and a **CLI** tool for reviewing PRs using local AI agents (`claude`, `agy`, or `codex`).
+A terminal-based Dashboard (TUI) and CLI for reviewing GitHub Pull Requests using local AI agents (`claude` or `antigravity and codex`). 
 
 Fetch PRs, view visual formatted diffs, generate comprehensive reviews using local AI, and post comments directly back to GitHub.
 
@@ -8,6 +9,10 @@ Fetch PRs, view visual formatted diffs, generate comprehensive reviews using loc
 
 - **Visual Desktop GUI App**: Built with a premium Obsidian-style dark theme, interactive autocomplete repository/PR selectors, formatted diff highlighting, and markdown review rendering.
 - **Interactive TUI Dashboard**: Built with [Textual](https://textual.textualize.io/) for high-speed terminal navigation.
+<img width="1333" height="492" alt="image" src="https://github.com/user-attachments/assets/c700847e-1fde-491d-ada1-0f637c853970" />
+
+
+- **Interactive TUI Dashboard**: Built with [Textual](https://textual.textualize.io/), featuring asynchronous non-blocking workers.
 - **Auto-Complete**: Live search and auto-complete for your GitHub repositories and open PRs.
 - **Native GitHub Auth**: Seamlessly integrates with the `gh` CLI. Triggers authentication via Web GUI directly when needed.
 - **Bring Your Own AI CLI**: Wraps existing local AI CLIs (like Anthropic's Claude Code) via subprocess, meaning you don't need to configure raw API keys or tokens.
