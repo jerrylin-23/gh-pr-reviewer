@@ -25,3 +25,6 @@ pr-reviewer-mcp = "gh_pr_reviewer.mcp_server:run"
 [tool.setuptools]
 packages = ["gh_pr_reviewer"]
 
+[tool.setuptools.package-data]
+gh_pr_reviewer = ["index.html"]
+
