@@ -38,7 +38,9 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
 )
-console = Console()
+# Route all status/error output to stderr so stdout stays clean for the MCP
+# stdio transport (JSON-RPC framing) and for any piping of CLI output.
+console = Console(stderr=True)
 
 # ─── Constants ───────────────────────────────────────────────────────────────
 

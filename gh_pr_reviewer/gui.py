@@ -73,9 +73,16 @@ def resolve_executable(executable: str) -> str | None:
 
 # ─── Auth / GitHub Helpers ──────────────────────────────────────────────────
 
+def _gh() -> str:
+    """Resolve the `gh` executable so GUI apps that don't inherit the shell PATH
+    can still find it. Falls back to the bare name (FileNotFoundError is handled
+    by callers) if resolution fails."""
+    return resolve_executable("gh") or "gh"
+
+
 def run_gh(args: list[str], repo: str | None = None) -> tuple[bool, str]:
     """Run a `gh` CLI command. Returns (success, output_or_error)."""
-    cmd = ["gh", *args]
+    cmd = [_gh(), *args]
     if repo:
         cmd.extend(["-R", repo])
     try:
@@ -100,14 +107,14 @@ def check_gh_auth() -> tuple[bool, str]:
     """Check if gh is authenticated. Returns (is_authed, username_or_error)."""
     try:
         result = subprocess.run(
-            ["gh", "auth", "status"],
+            [_gh(), "auth", "status"],
             capture_output=True, text=True, timeout=10,
         )
         output = result.stdout + result.stderr
         if result.returncode == 0:
             try:
                 user_result = subprocess.run(
-                    ["gh", "api", "user", "--jq", ".login"],
+                    [_gh(), "api", "user", "--jq", ".login"],
                     capture_output=True, text=True, check=True, timeout=10,
                 )
                 username = user_result.stdout.strip()
@@ -124,24 +131,45 @@ def check_gh_auth() -> tuple[bool, str]:
 
 
 def run_gh_login() -> tuple[bool, str]:
-    """Run `gh auth login --web` interactively."""
+    """Kick off the interactive `gh auth login --web` flow without blocking the UI.
+
+    `gh auth login --web` needs a TTY to display the one-time code and wait for
+    the user. Running it via `subprocess.run` from the GUI (no terminal attached)
+    hangs silently — the user can neither see the code nor press Enter. Instead we
+    launch it in the user's terminal as a detached process and let the frontend
+    poll `check_auth` until the login completes. Returns (is_authed, message);
+    is_authed is False here because login finishes asynchronously.
+    """
+    gh = resolve_executable("gh")
+    if not gh:
+        return False, "GitHub CLI (gh) not installed. See https://cli.github.com"
+
     try:
-        result = subprocess.run(["gh", "auth", "login", "--web"], timeout=300)
-        if result.returncode == 0:
-            ok, user = check_gh_auth()
-            return ok, user
-        return False, "Login cancelled or failed"
-    except FileNotFoundError:
-        return False, "gh CLI not installed"
-    except subprocess.TimeoutExpired:
-        return False, "Login timed out"
+        if sys.platform == "darwin":
+            script = (
+                'tell application "Terminal"\n'
+                "  activate\n"
+                f'  do script "{gh} auth login --web"\n'
+                "end tell"
+            )
+            subprocess.Popen(["osascript", "-e", script])
+        else:
+            # Detached so it never blocks the GUI thread; the user completes it
+            # in whatever terminal/browser the flow opens.
+            subprocess.Popen([gh, "auth", "login", "--web"])
+        return False, (
+            "Opened the GitHub sign-in flow in a terminal. Complete it there — "
+            "this window will update automatically once you're signed in."
+        )
+    except Exception as exc:
+        return False, f"Could not launch GitHub login: {exc}"
 
 
 def fetch_user_repos(limit: int = 200) -> list[str]:
     """Fetch the authenticated user's repos via `gh repo list`."""
     try:
         result = subprocess.run(
-            ["gh", "repo", "list", "--json", "nameWithOwner", "--limit", str(limit)],
+            [_gh(), "repo", "list", "--json", "nameWithOwner", "--limit", str(limit)],
             capture_output=True, text=True, check=True, timeout=30,
         )
         repos = json.loads(result.stdout)
@@ -158,7 +186,7 @@ def search_repos(query: str, limit: int = 10) -> list[str]:
     try:
         result = subprocess.run(
             [
-                "gh", "search", "repos", query.strip(),
+                _gh(), "search", "repos", query.strip(),
                 "--json", "fullName",
                 "--limit", str(limit),
             ],
@@ -179,7 +207,7 @@ def fetch_open_prs(repo: str, limit: int = 30) -> list[dict]:
     try:
         result = subprocess.run(
             [
-                "gh", "pr", "list",
+                _gh(), "pr", "list",
                 "-R", repo,
                 "--state", "open",
                 "--json", "number,title,author",
@@ -333,15 +361,21 @@ Format the output in clean Markdown with:
 Here are the reviews from the council members:
 """
 
-def call_ai_cli(provider: str, diff_text: str) -> tuple[bool, str]:
-    """Send the diff to a supported local AI CLI via subprocess."""
+def call_ai_cli(provider: str, diff_text: str, wrap: bool = True) -> tuple[bool, str]:
+    """Send a prompt to a supported local AI CLI via subprocess.
+
+    When ``wrap`` is True (the default), ``diff_text`` is treated as a raw diff
+    and wrapped in the standard review prompt + diff fence. Pass ``wrap=False``
+    to send ``diff_text`` verbatim — used for council synthesis, where the input
+    is already a complete moderator prompt and must not be re-wrapped as a diff.
+    """
     if provider not in SUPPORTED_PROVIDERS:
         return False, (
             f"{provider} is not configured as a supported non-interactive provider.\n"
             "Use Claude, Antigravity, or Codex, or add a provider-specific command adapter first."
         )
 
-    full_prompt = REVIEW_PROMPT + f"```diff\n{diff_text}\n```"
+    full_prompt = REVIEW_PROMPT + f"```diff\n{diff_text}\n```" if wrap else diff_text
     configured_cmd = SUPPORTED_PROVIDERS[provider]["command"]
     executable = resolve_executable(configured_cmd[0])
     if not executable:
@@ -547,7 +581,7 @@ class API:
             for p, r in reviews.items():
                 synthesis_input += f"### Reviewer: {p}\n\n{r}\n\n---\n\n"
 
-            ok, final_review = call_ai_cli(moderator, synthesis_input)
+            ok, final_review = call_ai_cli(moderator, synthesis_input, wrap=False)
             if ok:
                 participants = ", ".join([f"`{p}`" for p in reviews.keys()])
                 header = f"> **Council Review Consensus**\n> Generated by: {participants} | Synthesized by: `{moderator}`\n\n"
@@ -609,13 +643,25 @@ class API:
         config_path = os.path.expanduser("~/Library/Application Support/Claude/claude_desktop_config.json")
         config_dir = os.path.dirname(config_path)
         
+        # Prefer the repo-local editable install, but fall back to a globally
+        # installed `pr-reviewer-mcp` (e.g. pipx / packaged app) since `.venv`
+        # does not exist relative to a packaged bundle's resources.
         project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        mcp_executable = os.path.join(project_dir, ".venv", "bin", "pr-reviewer-mcp")
-        
-        if not os.path.exists(mcp_executable):
+        venv_executable = os.path.join(project_dir, ".venv", "bin", "pr-reviewer-mcp")
+
+        if os.path.exists(venv_executable):
+            mcp_executable = venv_executable
+        else:
+            mcp_executable = resolve_executable("pr-reviewer-mcp")
+
+        if not mcp_executable:
             return {
                 "success": False,
-                "error": f"MCP executable not found at: {mcp_executable}. Make sure .venv is set up."
+                "error": (
+                    "Could not locate the `pr-reviewer-mcp` executable. Install it "
+                    "with `pip install -e .` (creating .venv/bin/pr-reviewer-mcp) or "
+                    "ensure `pr-reviewer-mcp` is on your PATH."
+                ),
             }
 
         try:
@@ -657,6 +703,31 @@ def get_asset_path(filename):
 
 # ─── GUI Entrypoint ──────────────────────────────────────────────────────────
 
+def _set_dock_icon():
+    """Show the custom app icon in the macOS Dock when running from source.
+
+    The packaged .app gets its icon from the bundle's Info.plist (via the
+    PyInstaller --icon flag in build-dmg.sh). When launched from the venv
+    script the process is plain Python, so the Dock falls back to the generic
+    Python rocket. Point NSApplication at AppIcon.icns to restore the logo.
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from AppKit import NSApplication, NSImage
+    except Exception:
+        return
+    icon_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "packaging", "assets", "AppIcon.icns",
+    )
+    if not os.path.exists(icon_path):
+        return
+    image = NSImage.alloc().initByReferencingFile_(icon_path)
+    if image is not None:
+        NSApplication.sharedApplication().setApplicationIconImage_(image)
+
+
 def run_gui():
     import argparse
     parser = argparse.ArgumentParser(description="PR Reviewer GUI")
@@ -675,6 +746,7 @@ def run_gui():
         height=800,
         min_size=(1000, 700)
     )
+    _set_dock_icon()
     webview.start()
 
 

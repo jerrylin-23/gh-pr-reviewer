@@ -19,8 +19,8 @@ echo "=== 2. Copying App Icon Asset ==="
 # Find the generated logo file
 LOGO_SRC="$1"
 if [ -z "$LOGO_SRC" ]; then
-    # Fallback to looking in the user's gemini app data brain folder
-    LOGO_SRC=$(find ~/.gemini/antigravity-cli/brain/959dc6a4-12f8-4dfd-b43b-4fee2694d3ab -name "career_ops_logo_*.jpg" | head -n 1)
+    # Fall back to the repo-relative asset so any contributor can build.
+    LOGO_SRC="$ASSETS_DIR/logo.jpg"
 fi
 
 if [ -f "$LOGO_SRC" ]; then

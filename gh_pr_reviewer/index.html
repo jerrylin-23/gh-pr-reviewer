@@ -12,6 +12,8 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Marked for Markdown rendering -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- DOMPurify to sanitize AI-generated Markdown before it touches innerHTML -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
   <!-- Prism for Syntax Highlighting -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
@@ -942,15 +944,40 @@
       }
     }
 
+    // Poll check_auth until the interactive login completes (or attempts run out).
+    let authPollTimer = null;
+    function pollForAuth(attempts = 40) {
+      if (authPollTimer) clearTimeout(authPollTimer);
+      if (attempts <= 0) {
+        setStatus('Still not signed in. Click Sign in to try again.', true);
+        return;
+      }
+      authPollTimer = setTimeout(async () => {
+        try {
+          const resp = await pywebview.api.check_auth();
+          if (resp.is_authed) {
+            checkAuth();
+          } else {
+            pollForAuth(attempts - 1);
+          }
+        } catch (err) {
+          pollForAuth(attempts - 1);
+        }
+      }, 3000);
+    }
+
     // Trigger Login
     btnLogin.addEventListener('click', async () => {
-      setStatus('Launching GitHub login in browser...');
+      setStatus('Launching GitHub login...');
       try {
         const response = await pywebview.api.trigger_login();
         if (response.is_authed) {
           checkAuth();
         } else {
-          setStatus(`Login failed: ${response.username_or_error}`, true);
+          // Login runs interactively in a terminal and finishes asynchronously,
+          // so surface the instruction and poll until auth succeeds.
+          setStatus(response.username_or_error || 'Waiting for sign-in to complete...');
+          pollForAuth();
         }
       } catch (err) {
         setStatus('Login trigger failed', true);
@@ -1291,7 +1318,11 @@
     }
 
     function renderReviewMarkdown(markdownText) {
-      reviewContent.innerHTML = marked.parse(markdownText);
+      // The review body is AI output derived from untrusted PR content, so
+      // sanitize the rendered HTML before assigning it to innerHTML to prevent
+      // HTML/JS injection from executing inside the desktop WebView.
+      const rawHtml = marked.parse(markdownText);
+      reviewContent.innerHTML = DOMPurify.sanitize(rawHtml);
       enhanceReviewContent(reviewContent);
       Prism.highlightAllUnder(reviewContent);
     }
