@@ -2,20 +2,24 @@
 Agentic GitHub PR Reviewer
 ──────────────────────────
 Fetches a PR diff via the GitHub CLI (`gh`), analyses it with
-Claude CLI or Antigravity CLI, and posts the review back as a PR comment.
+Claude CLI, Antigravity CLI, or Codex CLI, and posts the review back as a PR
+comment.
 
 Handles GitHub auth — prompts `gh auth login` if needed.
 
 Usage:
     python main.py 42                                           # current repo, claude
     python main.py 42 --repo owner/repo                        # target a specific repo
-    python main.py 42 --repo owner/repo --provider antigravity  # use antigravity
+    python main.py 42 --repo owner/repo --provider antigravity  # use agy
+    python main.py 42 --repo owner/repo --provider codex        # use codex
     python main.py 42 --repo owner/repo --post                  # review + post
 """
 
 from __future__ import annotations
 
 import os
+import shlex
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -43,25 +47,111 @@ class Provider(str, Enum):
     claude = "claude"
     antigravity = "antigravity"
     codex = "codex"
+    council = "council"
 
 
 REVIEW_PROMPT = textwrap.dedent("""\
-    You are a senior software engineer performing a thorough code review.
+    You are a senior software engineer reviewing a GitHub pull request.
 
-    When given a unified diff from a GitHub Pull Request, you MUST:
-    1. Summarise what the PR does in 2-3 sentences.
-    2. List any bugs or logic errors you find.
-    3. List any security concerns.
-    4. List any performance issues.
-    5. Suggest concrete improvements with code snippets where helpful.
-    6. Call out anything that is well done.
+    Review the unified diff and produce a concise, findings-first code review.
+    Focus on real defects, regressions, security issues, data-loss risks,
+    broken edge cases, and maintainability problems that would matter before
+    merging. Prioritize source-code changes. Treat generated snapshots,
+    lockfiles, build artifacts, vendored files, and golden-output updates as
+    supporting evidence unless they reveal an actual source bug.
 
-    Keep your tone constructive, concise, and actionable.
-    Format the review in Markdown so it renders nicely on GitHub.
+    Important operating rule:
+    - Do not inspect the local workspace.
+    - Do not run shell commands.
+    - Do not use tools, request permissions, or access the network.
+    - Review only the diff text included in this prompt. If context is missing,
+      mention the uncertainty in Summary instead of asking for permissions.
+
+    Output Markdown in exactly this shape:
+
+    ## Decision
+    - Status: `Ready` / `Needs changes` / `Blocked`
+    - Risk: `Low` / `Medium` / `High`
+    - Main reason: one sentence.
+
+    ## Findings
+    Use one subsection per issue:
+
+    ### [P0/P1/P2/P3] Short actionable title
+    - File: `path/to/file`
+    - Evidence: What changed in the diff that proves this.
+    - Impact: What breaks or gets riskier.
+    - Fix: Smallest practical fix.
+
+    ## Summary
+    2-3 sentences on what changed and any residual risk. Mention test gaps only
+    if they matter.
+
+    Rules:
+    - Put findings first. If there are no substantive issues, write
+      "No blocking issues found" under Findings and keep the rest brief.
+    - Do not invent problems. Tie every finding to evidence in the diff.
+    - Avoid generic praise, style nits, and broad best-practice advice.
+    - Do not paste large chunks of the diff back to the user.
+    - Prefer actionable feedback over commentary.
+    - Keep each finding readable by a busy developer in under 8 lines.
 
     Here is the Pull Request diff to review:
 
 """)
+
+SUPPORTED_PROVIDER_COMMANDS = {
+    Provider.claude: ["claude", "--print", "--output-format", "text"],
+    Provider.antigravity: ["agy", "--print", "--print-timeout", "5m"],
+    Provider.codex: [
+        "codex", "exec",
+        "--skip-git-repo-check",
+        "--sandbox", "read-only",
+        "-c", "approval_policy=\"never\"",
+        "--ephemeral",
+        "--ignore-rules",
+        "--color", "never",
+        "-",
+    ],
+}
+
+COMMON_CLI_DIRS = [
+    os.path.expanduser("~/.local/bin"),
+    os.path.expanduser("~/bin"),
+    os.path.expanduser("~/.cargo/bin"),
+    os.path.expanduser("~/.npm-global/bin"),
+    os.path.expanduser("~/node_modules/.bin"),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+]
+
+
+def resolve_executable(executable: str) -> str | None:
+    """Resolve CLI paths even when PATH differs from the user's login shell."""
+    resolved = shutil.which(executable)
+    if resolved:
+        return resolved
+
+    for directory in COMMON_CLI_DIRS:
+        candidate = os.path.join(directory, executable)
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+
+    try:
+        result = subprocess.run(
+            ["/bin/zsh", "-lc", f"command -v {shlex.quote(executable)}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            candidate = result.stdout.strip().splitlines()[0]
+            if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+    except (IndexError, FileNotFoundError, subprocess.TimeoutExpired):
+        return None
+
+    return None
 
 
 # ─── Auth helpers ────────────────────────────────────────────────────────────
@@ -242,15 +332,50 @@ def _run_gh(args: list[str], repo: str | None = None) -> str:
 
 
 def _run_ai_cli(provider: Provider, prompt: str) -> str:
-    """Send a prompt to Claude CLI or Antigravity CLI via subprocess."""
+    """Send a prompt to a supported local AI CLI via subprocess."""
+    if provider not in SUPPORTED_PROVIDER_COMMANDS:
+        console.print(
+            Panel(
+                f"[bold red]{provider.value} is not configured as a supported "
+                "non-interactive provider.[/bold red]\n\n"
+                "Use Claude, Antigravity, or Codex, or add a provider-specific command adapter first.",
+                title="⚠️  Unsupported provider",
+            )
+        )
+        raise typer.Exit(code=1)
+
     cli_name = provider.value
-    cmd = [cli_name, "-p", prompt]
 
     try:
+        configured_cmd = SUPPORTED_PROVIDER_COMMANDS[provider]
+        executable = resolve_executable(configured_cmd[0])
+        if not executable:
+            console.print(
+                Panel(
+                    f"[bold red]{cli_name} CLI not found.[/bold red]\n\n"
+                    f"Expected executable: [bold]{configured_cmd[0]}[/bold]",
+                    title="⚠️  Missing CLI",
+                )
+            )
+            raise typer.Exit(code=1)
+
+        cmd = [executable, *configured_cmd[1:]]
         result = subprocess.run(
             cmd, capture_output=True, text=True, check=True, timeout=300,
+            input=prompt,
         )
-        return result.stdout.strip()
+        output = result.stdout.strip()
+        output = extract_review_markdown(output)
+        if looks_like_raw_diff(output):
+            console.print(
+                Panel(
+                    f"[bold red]{cli_name} returned raw diff text instead of a review.[/bold red]\n\n"
+                    "Try another provider or reduce the PR size.",
+                    title="⚠️  AI CLI error",
+                )
+            )
+            raise typer.Exit(code=1)
+        return output
     except FileNotFoundError:
         console.print(
             Panel(
@@ -298,11 +423,178 @@ def fetch_diff(pr_number: int, repo: str | None = None) -> str:
     return diff
 
 
+def get_available_providers() -> list[str]:
+    available = []
+    for provider, command in SUPPORTED_PROVIDER_COMMANDS.items():
+        if resolve_executable(command[0]) is not None:
+            available.append(provider.value)
+    return available
+
+def extract_review_markdown(output: str) -> str:
+    """Trim provider progress chatter before the structured review."""
+    lines = output.splitlines()
+    for index, line in enumerate(lines):
+        if line.strip() in {"## Decision", "## Findings", "# Decision", "# Findings"}:
+            lines = lines[index:]
+            break
+
+    for index, line in enumerate(lines):
+        if line.strip().lower() == "tokens used":
+            lines = lines[:index]
+            break
+
+    return "\n".join(lines).strip()
+
+def looks_like_raw_diff(output: str) -> bool:
+    """Detect provider failures that echo the input diff back to the UI."""
+    lines = output.splitlines()
+    if not lines:
+        return False
+
+    if output.lstrip().startswith("diff --git"):
+        return True
+
+    diff_markers = 0
+    for line in lines:
+        if (
+            line.startswith("diff --git")
+            or line.startswith("@@")
+            or line.startswith("+++ ")
+            or line.startswith("--- ")
+        ):
+            diff_markers += 1
+
+    has_review_shape = "## Findings" in output or "## Decision" in output
+    return not has_review_shape and diff_markers >= 5
+
+def summarize_provider_error(error: str) -> str:
+    """Compress verbose CLI failures into useful council-mode skip reasons."""
+    text = error.lower()
+    if any(token in text for token in ("quota", "usage limit", "rate limit", "maxed")):
+        return "quota or usage limit"
+    if any(token in text for token in ("permission", "approval", "operation not permitted")):
+        return "permission or sandbox issue"
+    if "not found" in text or "expected executable" in text:
+        return "not found"
+    if "timed out" in text or "timeout" in text:
+        return "timeout"
+    if "raw diff" in text:
+        return "returned raw diff"
+    first_line = error.strip().splitlines()[0] if error.strip() else "unknown error"
+    return first_line[:90]
+
+def format_skipped_providers(failed: dict[str, str]) -> str:
+    return ", ".join(
+        f"`{name}` ({summarize_provider_error(error)})"
+        for name, error in failed.items()
+    )
+
+COUNCIL_PROMPT = """\
+You are the Moderator of the AI Code Review Council.
+Below are code reviews generated by different AI agents for the same pull request diff.
+Some installed agents may have failed due to quota, usage limits, auth, or
+timeouts. Ignore failed agents and synthesize only the successful reviews below.
+Do not inspect files, run commands, use tools, request permissions, or access
+the network. Synthesize only the review text below.
+
+Your task is to produce one concise, high-quality review:
+- Preserve the same Decision, Findings, and Summary sections.
+- Put actionable findings first inside Findings.
+- Keep only issues backed by the diff or by a strong consensus across agents.
+- Deduplicate repeated findings.
+- Drop generic praise, style-only nits, and speculative advice.
+- If the successful reviewers found no substantive issues, say
+  "No blocking issues found" and keep the summary brief.
+
+Format the output in clean Markdown with:
+## Decision
+## Findings
+### [P0/P1/P2/P3] Short actionable title
+## Summary
+
+Here are the reviews from the council members:
+"""
+
 def analyze_diff(diff_text: str, provider: Provider) -> str:
     """Send the diff to the chosen AI CLI and return a Markdown review."""
-    console.print(f"[cyan]Analysing diff with {provider.value}…[/cyan]")
-    full_prompt = REVIEW_PROMPT + f"```diff\n{diff_text}\n```"
-    return _run_ai_cli(provider, full_prompt)
+    if provider == Provider.council:
+        import concurrent.futures
+        console.print("[cyan]Running Council Review mode…[/cyan]")
+        available = get_available_providers()
+        if not available:
+            console.print("[bold red]Error: No supported AI CLIs (claude, agy, codex) found in your PATH.[/bold red]")
+            raise typer.Exit(code=1)
+
+        if len(available) == 1:
+            single_provider = available[0]
+            console.print(f"[yellow]Only {single_provider} CLI is installed. Running single review.[/yellow]")
+            res = _run_ai_cli(Provider(single_provider), REVIEW_PROMPT + f"```diff\n{diff_text}\n```")
+            return f"> **Note:** Council Mode requested, but only `{single_provider}` was found. Running single review.\n\n" + res
+
+        console.print(f"[cyan]Invoking council members in parallel: {', '.join(available)}…[/cyan]")
+
+        reviews = {}
+        failed = {}
+        def run_one(p):
+            prov_enum = Provider(p)
+            prompt = REVIEW_PROMPT + f"```diff\n{diff_text}\n```"
+            try:
+                res = _run_ai_cli(prov_enum, prompt)
+                return p, True, res
+            except Exception as e:
+                return p, False, str(e)
+
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = [executor.submit(run_one, p) for p in available]
+            for future in concurrent.futures.as_completed(futures):
+                p, ok, res = future.result()
+                if ok:
+                    reviews[p] = res
+                    console.print(f"[green]✔ Reviewer {p} completed successfully.[/green]")
+                else:
+                    failed[p] = res
+                    console.print(f"[red]✗ Reviewer {p} failed: {res}[/red]")
+
+        if not reviews:
+            console.print("[bold red]Error: All council reviewers failed.[/bold red]")
+            raise typer.Exit(code=1)
+
+        if len(reviews) == 1:
+            p, r = list(reviews.items())[0]
+            skipped = format_skipped_providers(failed)
+            note = f"> **Council Mode:** only `{p}` succeeded."
+            if skipped:
+                note += f" Skipped providers: {skipped}."
+            return note + "\n\n" + r
+
+        moderator = next(p for p in available if p in reviews)
+        console.print(f"[cyan]Synthesizing reviews using {moderator} as Moderator…[/cyan]")
+        synthesis_input = COUNCIL_PROMPT + "\n\n"
+        for p, r in reviews.items():
+            synthesis_input += f"### Reviewer: {p}\n\n{r}\n\n---\n\n"
+
+        try:
+            final_review = _run_ai_cli(Provider(moderator), synthesis_input)
+            participants = ", ".join([f"`{p}`" for p in reviews.keys()])
+            header = f"> **Council Review Consensus**\n> Generated by: {participants} | Synthesized by: `{moderator}`\n\n"
+            if failed:
+                skipped = format_skipped_providers(failed)
+                header += f"> Skipped providers: {skipped}\n\n"
+            return header + final_review
+        except Exception as e:
+            console.print(f"[yellow]Warning: Synthesis failed ({e}). Appending individual reviews.[/yellow]")
+            fallback = "> **Note:** Synthesis failed. Appending individual reviews:\n\n"
+            if failed:
+                skipped = format_skipped_providers(failed)
+                fallback += f"> Skipped providers: {skipped}\n\n"
+            for p, r in reviews.items():
+                fallback += f"## Reviewer: {p}\n\n{r}\n\n"
+            return fallback
+
+    else:
+        console.print(f"[cyan]Analysing diff with {provider.value}…[/cyan]")
+        full_prompt = REVIEW_PROMPT + f"```diff\n{diff_text}\n```"
+        return _run_ai_cli(provider, full_prompt)
 
 
 def post_review(pr_number: int, review_body: str, repo: str | None = None) -> None:

@@ -5,15 +5,23 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gh-pr-reviewer"
 version = "0.1.0"
-description = "AI-powered GitHub PR Reviewer using Claude/Antigravity CLI"
+description = "AI-powered GitHub PR Reviewer using Claude/Antigravity/Codex CLI"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.12.0",
     "rich>=13.0.0",
     "textual>=1.0.0",
+    "pywebview>=5.0",
+    "mcp>=1.0.0",
 ]
 
 [project.scripts]
 pr-reviewer = "gh_pr_reviewer.main:app"
 pr-reviewer-tui = "gh_pr_reviewer.tui:run_tui"
+pr-reviewer-gui = "gh_pr_reviewer.gui:run_gui"
+pr-reviewer-mcp = "gh_pr_reviewer.mcp_server:run"
+
+[tool.setuptools]
+packages = ["gh_pr_reviewer"]
+

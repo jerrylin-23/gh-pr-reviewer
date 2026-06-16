@@ -34,3 +34,8 @@ wheels/
 
 # MacOS
 .DS_Store
+
+# Packaging build outputs
+packaging/dist/
+packaging/dmg_stage/
+
