@@ -855,11 +855,11 @@
       resetLoadedPrState();
     }
 
-    function selectRepo(repo) {
+    function selectRepo(repo, initPr = null) {
       selectedRepo = repo.trim();
       repoInput.value = selectedRepo;
       repoSuggestions.style.display = 'none';
-      loadPRs(selectedRepo);
+      loadPRs(selectedRepo, initPr);
     }
 
     function syncManualPrInput() {
@@ -1070,28 +1070,42 @@
     }
 
     // Load PRs
-    async function loadPRs(repo) {
+    async function loadPRs(repo, initPr = null) {
       selectedRepo = repo;
       setStatus(`Loading open PRs for ${repo}...`);
       prInput.disabled = false;
-      prInput.value = '';
-      delete prInput.dataset.prNumber;
-      prInput.placeholder = 'Type a PR number or wait for suggestions...';
-      btnFetch.disabled = true;
+      if (initPr) {
+        prInput.value = `#${initPr}`;
+        prInput.dataset.prNumber = initPr;
+        btnFetch.disabled = false;
+      } else {
+        prInput.value = '';
+        delete prInput.dataset.prNumber;
+        prInput.placeholder = 'Type a PR number or wait for suggestions...';
+        btnFetch.disabled = true;
+      }
       btnReview.disabled = true;
 
       try {
         const prs = await pywebview.api.fetch_prs(repo);
         cachedPrs = prs;
         prInput.disabled = false;
-        prInput.placeholder = prs.length > 0 ? "Select or type a PR number..." : "Type a PR number...";
+        if (!initPr) {
+          prInput.placeholder = prs.length > 0 ? "Select or type a PR number..." : "Type a PR number...";
+        }
 
-      setupPrAutocomplete();
-      setStatus(
-          prs.length > 0
-            ? `Loaded ${prs.length} open PRs for ${repo}`
-            : `No open PRs listed for ${repo}; you can still type a PR number`
-        );
+        setupPrAutocomplete();
+        setStatus(
+            prs.length > 0
+              ? `Loaded ${prs.length} open PRs for ${repo}`
+              : `No open PRs listed for ${repo}; you can still type a PR number`
+          );
+
+        if (initPr) {
+          setTimeout(() => {
+            btnFetch.click();
+          }, 50);
+        }
       } catch (err) {
         setStatus(`Error loading PRs: ${err}`, true);
       }
@@ -1542,16 +1556,7 @@
       try {
         const initArgs = await pywebview.api.get_init_args();
         if (initArgs && initArgs.repo) {
-          selectRepo(initArgs.repo);
-          if (initArgs.pr) {
-            prInput.value = `#${initArgs.pr}`;
-            prInput.dataset.prNumber = initArgs.pr;
-            btnFetch.disabled = false;
-            // Delay slightly to ensure repo loaded open PRs autocomplete
-            setTimeout(() => {
-              btnFetch.click();
-            }, 300);
-          }
+          selectRepo(initArgs.repo, initArgs.pr);
         }
       } catch (err) {
         console.error("Error loading init args:", err);

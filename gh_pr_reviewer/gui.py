@@ -300,7 +300,7 @@ def get_provider_options() -> list[dict]:
     available = get_available_providers()
     options = []
     if len(available) > 1:
-        options.append({"value": "council", "label": "Council Mode (Available CLIs)"})
+        options.append({"value": "council", "label": "Council Mode"})
     options.extend(
         {"value": provider, "label": SUPPORTED_PROVIDERS[provider]["label"]}
         for provider in available

@@ -213,7 +213,8 @@ def create_server():
         app_bundle = os.path.join(project_dir, "dist", "PRReviewer.app")
 
         if os.path.exists(app_bundle) and sys.platform == "darwin":
-            cmd = ["open", app_bundle, "--args", "--repo", repo, "--pr", str(pr_number)]
+            binary_path = os.path.join(app_bundle, "Contents", "MacOS", "PRReviewer")
+            cmd = [binary_path, "--repo", repo, "--pr", str(pr_number)]
         else:
             python_exe = sys.executable or os.path.join(project_dir, ".venv", "bin", "python")
             gui_script = os.path.join(project_dir, "gh_pr_reviewer", "gui.py")
