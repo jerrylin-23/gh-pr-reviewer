@@ -203,6 +203,34 @@ def create_server():
             "posted": posted,
         }
 
+    @server.tool()
+    def open_in_desktop_gui(repo: str, pr_number: int) -> dict[str, Any]:
+        """Launch the desktop GUI app and load the specific repository and PR on startup."""
+        import sys
+        import os
+
+        project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        app_bundle = os.path.join(project_dir, "dist", "PRReviewer.app")
+
+        if os.path.exists(app_bundle) and sys.platform == "darwin":
+            cmd = ["open", app_bundle, "--args", "--repo", repo, "--pr", str(pr_number)]
+        else:
+            python_exe = sys.executable or os.path.join(project_dir, ".venv", "bin", "python")
+            gui_script = os.path.join(project_dir, "gh_pr_reviewer", "gui.py")
+            cmd = [python_exe, gui_script, "--repo", repo, "--pr", str(pr_number)]
+
+        try:
+            subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {
+                "success": True,
+                "message": f"Successfully launched GUI for {repo} PR #{pr_number} using command: {' '.join(cmd)}"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Failed to launch GUI: {str(e)}"
+            }
+
     return server
 
 

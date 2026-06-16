@@ -1533,10 +1533,29 @@
     });
 
     // pywebview loaded entrypoint
-    window.addEventListener('pywebviewready', () => {
+    window.addEventListener('pywebviewready', async () => {
       loadProviders();
       checkAuth();
       checkMcpStatus();
+
+      // Handle deep linking / startup arguments
+      try {
+        const initArgs = await pywebview.api.get_init_args();
+        if (initArgs && initArgs.repo) {
+          selectRepo(initArgs.repo);
+          if (initArgs.pr) {
+            prInput.value = `#${initArgs.pr}`;
+            prInput.dataset.prNumber = initArgs.pr;
+            btnFetch.disabled = false;
+            // Delay slightly to ensure repo loaded open PRs autocomplete
+            setTimeout(() => {
+              btnFetch.click();
+            }, 300);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading init args:", err);
+      }
     });
   </script>
 </body>

@@ -443,6 +443,13 @@ def format_skipped_providers(failed: dict[str, str]) -> str:
 # ─── API Class exposed to Javascript ────────────────────────────────────────
 
 class API:
+    def __init__(self, repo: str | None = None, pr: str | None = None):
+        self.repo = repo
+        self.pr = pr
+
+    def get_init_args(self):
+        return {"repo": self.repo, "pr": self.pr}
+
     def check_auth(self):
         is_authed, info = check_gh_auth()
         return {"is_authed": is_authed, "username_or_error": info}
@@ -651,10 +658,15 @@ def get_asset_path(filename):
 # ─── GUI Entrypoint ──────────────────────────────────────────────────────────
 
 def run_gui():
-    # Load index.html
-    html_path = get_asset_path("index.html")
+    import argparse
+    parser = argparse.ArgumentParser(description="PR Reviewer GUI")
+    parser.add_argument("--repo", help="Initial repository (owner/repo)")
+    parser.add_argument("--pr", help="Initial PR number")
+    args, _ = parser.parse_known_args()
 
-    api = API()
+    html_path = get_asset_path("index.html")
+    api = API(repo=args.repo, pr=args.pr)
+
     window = webview.create_window(
         title="Agentic PR Reviewer",
         url=html_path,
@@ -664,6 +676,7 @@ def run_gui():
         min_size=(1000, 700)
     )
     webview.start()
+
 
 if __name__ == "__main__":
     run_gui()
