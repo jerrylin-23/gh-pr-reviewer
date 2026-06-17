@@ -1,36 +1,46 @@
 # Agentic GitHub PR Reviewer
 
-An AI-powered GitHub Pull Request reviewer. It provides a visual **Desktop GUI App** (macOS DMG), an **Interactive TUI Dashboard** (Terminal), and a **CLI** tool for reviewing PRs using local AI agents (`claude`, `agy`, or `codex`).
-A terminal-based Dashboard (TUI) and CLI for reviewing GitHub Pull Requests using local AI agents (`claude` or `antigravity and codex`). 
+An AI-powered GitHub Pull Request reviewer. It ships four ways to review a PR — a visual **Desktop GUI App** (macOS DMG), an **Interactive TUI Dashboard**, a **CLI**, and an **MCP Server** — all driven by the local AI agents you already have installed (`claude`, `agy`, or `codex`).
 
-Fetch PRs, view visual formatted diffs, generate comprehensive reviews using local AI, and post comments directly back to GitHub.
+Fetch PRs, view formatted diffs, generate comprehensive reviews with local AI, and post comments straight back to GitHub — without ever handling raw API keys.
+
+## Demo
+
+<!--
+  To embed the demo video: open this README in the GitHub web editor
+  (https://github.com/jerrylin-23/gh-pr-reviewer/edit/main/README.md), drag the
+  MP4 into the editor where the line below is, and GitHub will replace it with a
+  hosted https://github.com/user-attachments/assets/... player link.
+-->
+
+_Demo video coming soon._
 
 ## Features
 
-- **Visual Desktop GUI App**: Built with a premium Obsidian-style dark theme, interactive autocomplete repository/PR selectors, formatted diff highlighting, and markdown review rendering.
-- **Interactive TUI Dashboard**: Built with [Textual](https://textual.textualize.io/) for high-speed terminal navigation.
-<img width="1333" height="492" alt="image" src="https://github.com/user-attachments/assets/c700847e-1fde-491d-ada1-0f637c853970" />
+- **Visual Desktop GUI App**: A premium Obsidian-style dark theme with autocomplete repository/PR selectors, formatted diff highlighting, and rendered Markdown reviews.
+- **Interactive TUI Dashboard**: Built with [Textual](https://textual.textualize.io/) for high-speed terminal navigation, featuring asynchronous non-blocking workers.
 
+<img width="1333" height="492" alt="TUI dashboard" src="https://github.com/user-attachments/assets/c700847e-1fde-491d-ada1-0f637c853970" />
 
-- **Interactive TUI Dashboard**: Built with [Textual](https://textual.textualize.io/), featuring asynchronous non-blocking workers.
-- **Auto-Complete**: Live search and auto-complete for your GitHub repositories and open PRs.
-- **Native GitHub Auth**: Seamlessly integrates with the `gh` CLI. Triggers authentication via Web GUI directly when needed.
-- **Bring Your Own AI CLI**: Wraps existing local AI CLIs (like Anthropic's Claude Code) via subprocess, meaning you don't need to configure raw API keys or tokens.
-- **MCP Server**: Exposes PR review tools to MCP-capable clients while keeping GitHub access on your existing `gh` auth.
-- **Safe Workflow**: Fetch and generate reviews locally. Reviews are never posted until you explicitly click **Post**.
+- **Council Review Mode**: When multiple AI CLIs are installed, run them in parallel and have one act as a moderator that synthesizes the individual reviews into a single consensus report.
+- **Auto-Complete**: Live search and autocomplete for your GitHub repositories and open PRs.
+- **Native GitHub Auth**: Integrates with the `gh` CLI and triggers web-based authentication when needed.
+- **Bring Your Own AI CLI**: Wraps local AI CLIs (such as Anthropic's Claude Code) via subprocess, so you never configure raw API keys or tokens.
+- **MCP Server**: Exposes the PR review tools to MCP-capable clients while keeping GitHub access on your existing `gh` auth.
+- **Safe Workflow**: Fetch and generate reviews locally. Nothing is posted until you explicitly confirm.
 
 ## Prerequisites
 
 - Python 3.11+
 - [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated.
-- An AI CLI installed globally (e.g. `npm install -g @anthropic-ai/claude-code`).
+- At least one AI CLI installed globally (e.g. `npm install -g @anthropic-ai/claude-code`). Install two or more to enable Council mode.
 
 ## Installation
 
 You can install this project globally using `pip`:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/gh-pr-reviewer.git
+git clone https://github.com/jerrylin-23/gh-pr-reviewer.git
 cd gh-pr-reviewer
 pip install -e .
 ```
@@ -41,9 +51,11 @@ pip install -e .
 Launch the native Cocoa WebKit desktop window:
 ```bash
 pr-reviewer-gui
+
 # Or open the packaged app:
 open packaging/dist/PRReviewer.dmg
 ```
+Select **Council Mode** from the provider dropdown to review with every installed agent at once.
 
 ### 2. Interactive Dashboard (TUI)
 Launch the interactive terminal UI:
@@ -60,6 +72,9 @@ pr-reviewer 123
 # Target a specific repository
 pr-reviewer 123 -R astral-sh/ruff
 
+# Choose a provider (claude, antigravity, codex) or run the full council
+pr-reviewer 123 --provider council
+
 # Post the review automatically
 pr-reviewer 123 --post
 ```
@@ -70,12 +85,12 @@ Run the reviewer as a stdio MCP server:
 pr-reviewer-mcp
 ```
 
-Example MCP client config:
+Example MCP client config (point `command` at the `pr-reviewer-mcp` on your PATH, or the one inside this repo's virtualenv):
 ```json
 {
   "mcpServers": {
     "gh-pr-reviewer": {
-      "command": "/Users/jerry/Projects/gh-pr-reviewer/.venv/bin/pr-reviewer-mcp"
+      "command": "pr-reviewer-mcp"
     }
   }
 }
@@ -90,6 +105,7 @@ Available MCP tools:
 - `generate_pr_review`: Generate a Markdown review without posting it.
 - `post_pr_review`: Post an existing review body.
 - `review_pr`: Fetch metadata and diff, generate a review, and optionally post it.
+- `open_in_desktop_gui`: Launch the Desktop GUI App pre-loaded with a specific repo and PR.
 
 ## Running Tests
 
@@ -101,9 +117,9 @@ bash test_runner.sh
 
 ## Packaging as a macOS DMG App
 
-You can package the Webview Desktop GUI as a native standalone macOS `.dmg` application:
+You can package the WebView Desktop GUI as a native standalone macOS `.dmg` application:
 
-1. Make sure you have PyInstaller installed in your virtual environment:
+1. Make sure PyInstaller is installed in your virtual environment:
    ```bash
    pip install pyinstaller pywebview
    ```
@@ -112,7 +128,7 @@ You can package the Webview Desktop GUI as a native standalone macOS `.dmg` appl
    ./packaging/build-dmg.sh
    ```
 
-The output DMG installer will be located in [PRReviewer.dmg](file:///Users/jerry/Projects/gh-pr-reviewer/packaging/dist/PRReviewer.dmg).
+The output DMG installer is written to `packaging/dist/PRReviewer.dmg`.
 
 ## License
 
