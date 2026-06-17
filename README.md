@@ -1,11 +1,15 @@
-# Agentic GitHub PR Reviewer
+
+
+
 
 An AI-powered GitHub Pull Request reviewer. It ships four ways to review a PR — a visual **Desktop GUI App** (macOS DMG), an **Interactive TUI Dashboard**, a **CLI**, and an **MCP Server** — all driven by the local AI agents you already have installed (`claude`, `agy`, or `codex`).
 
 Fetch PRs, view formatted diffs, generate comprehensive reviews with local AI, and post comments straight back to GitHub — without ever handling raw API keys.
 
 ## Demo
+https://github.com/user-attachments/assets/de43a9fd-3ab3-4295-b39a-fcfb3ac35297
 
+# Agentic GitHub PR Reviewer
 <!--
   To embed the demo video: open this README in the GitHub web editor
   (https://github.com/jerrylin-23/gh-pr-reviewer/edit/main/README.md), drag the
@@ -13,14 +17,13 @@ Fetch PRs, view formatted diffs, generate comprehensive reviews with local AI, a
   hosted https://github.com/user-attachments/assets/... player link.
 -->
 
-_Demo video coming soon._
+
 
 ## Features
 
 - **Visual Desktop GUI App**: A premium Obsidian-style dark theme with autocomplete repository/PR selectors, formatted diff highlighting, and rendered Markdown reviews.
 - **Interactive TUI Dashboard**: Built with [Textual](https://textual.textualize.io/) for high-speed terminal navigation, featuring asynchronous non-blocking workers.
 
-<img width="1333" height="492" alt="TUI dashboard" src="https://github.com/user-attachments/assets/c700847e-1fde-491d-ada1-0f637c853970" />
 
 - **Council Review Mode**: When multiple AI CLIs are installed, run them in parallel and have one act as a moderator that synthesizes the individual reviews into a single consensus report.
 - **Auto-Complete**: Live search and autocomplete for your GitHub repositories and open PRs.
