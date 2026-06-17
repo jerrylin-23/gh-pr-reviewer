@@ -1,0 +1,1598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agentic PR Reviewer</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Marked for Markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- DOMPurify to sanitize AI-generated Markdown before it touches innerHTML -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.9/purify.min.js"></script>
+  <!-- Prism for Syntax Highlighting -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #000000;
+      --bg-secondary: #0a0a0a;
+      --bg-tertiary: #141414;
+      --border-color: #262626;
+      --border-hover: #404040;
+      --text-main: #f5f5f5;
+      --text-muted: #737373;
+      --text-dim: #a3a3a3;
+      --accent-color: #ffffff;
+      --accent-bg: #ffffff;
+      --accent-fg: #000000;
+      --success-color: #10b981;
+      --warning-color: #f59e0b;
+      --danger-color: #ef4444;
+      --diff-add-bg: rgba(16, 185, 129, 0.08);
+      --diff-add-border: rgba(16, 185, 129, 0.2);
+      --diff-del-bg: rgba(239, 68, 68, 0.08);
+      --diff-del-border: rgba(239, 68, 68, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* --- Scrollbar styling --- */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 0;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--border-hover);
+    }
+
+    /* --- App Header --- */
+    header {
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-logo {
+      width: 1.25rem;
+      height: 1.25rem;
+      color: var(--text-main);
+    }
+
+    .brand-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-main);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .auth-badge {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.75rem;
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      padding: 0.375rem 0.75rem;
+      border-radius: 2px;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .auth-badge.authenticated .indicator {
+      background-color: var(--success-color);
+    }
+
+    .auth-badge.unauthenticated .indicator {
+      background-color: var(--danger-color);
+    }
+
+    .indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .btn-login {
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 0.75rem;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      transition: color 0.15s;
+    }
+
+    .btn-login:hover {
+      color: var(--text-muted);
+      text-decoration: underline;
+    }
+
+    /* --- Control Panel --- */
+    .control-panel {
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 1rem 1.5rem;
+      display: flex;
+      align-items: flex-end;
+      gap: 1.25rem;
+      z-index: 9;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.375rem;
+      position: relative;
+    }
+
+    .input-group label {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .input-control {
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      height: 2.5rem;
+      padding: 0 0.75rem;
+      border-radius: 2px;
+      font-size: 0.8125rem;
+      font-family: inherit;
+      width: 16rem;
+      transition: border-color 0.15s;
+    }
+
+    .input-control:focus {
+      outline: none;
+      border-color: var(--accent-color);
+    }
+
+    .select-control {
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      background-size: 0.875rem;
+      padding-right: 2.25rem;
+      width: 13rem;
+    }
+
+    /* --- Autocomplete Dropdown --- */
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 2px 2px;
+      max-height: 15rem;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+    }
+
+    .autocomplete-item {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8125rem;
+      cursor: pointer;
+      transition: background-color 0.15s, color 0.15s;
+      border-bottom: 1px solid rgba(38, 38, 38, 0.3);
+    }
+
+    .autocomplete-item:last-child {
+      border-bottom: none;
+    }
+
+    .autocomplete-item:hover {
+      background-color: var(--bg-tertiary);
+      color: var(--text-main);
+    }
+
+    .autocomplete-item.selected {
+      background-color: var(--bg-tertiary);
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    /* --- Buttons --- */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      height: 2.5rem;
+      padding: 0 1rem;
+      border-radius: 2px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+      border: 1px solid var(--border-color);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .btn:active {
+      background-color: var(--bg-tertiary);
+    }
+
+    .btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background-color: var(--accent-bg);
+      color: var(--accent-fg);
+      border-color: var(--accent-bg);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background-color: #e5e5e5;
+      border-color: #e5e5e5;
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-secondary);
+      border-color: var(--border-color);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background-color: var(--bg-tertiary);
+      border-color: var(--border-hover);
+    }
+
+    .btn-success {
+      background-color: var(--bg-primary);
+      border-color: var(--success-color);
+      color: var(--success-color);
+    }
+
+    .btn-success:hover:not(:disabled) {
+      background-color: rgba(16, 185, 129, 0.08);
+    }
+
+    /* --- Segmented Button Group --- */
+    .btn-group {
+      display: flex;
+      align-items: center;
+    }
+
+    .btn-group .btn {
+      border-radius: 0;
+      border-right-width: 0;
+    }
+
+    .btn-group .btn:first-child {
+      border-top-left-radius: 2px;
+      border-bottom-left-radius: 2px;
+    }
+
+    .btn-group .btn:last-child {
+      border-top-right-radius: 2px;
+      border-bottom-right-radius: 2px;
+      border-right-width: 1px;
+    }
+
+    /* --- Status bar --- */
+    .status-bar {
+      flex: 1;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      text-align: right;
+      margin-bottom: 0.5rem;
+      font-family: 'Fira Code', monospace;
+    }
+
+
+    /* --- Main Split Content --- */
+    .main-content {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 115px);
+      overflow: hidden;
+    }
+
+    .pane {
+      flex: 1;
+      height: 100%;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border-color);
+    }
+
+    .pane:last-child {
+      border-right: none;
+    }
+
+    .pane-header {
+      background-color: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 0.75rem 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pane-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .pane-body {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: auto;
+      background-color: var(--bg-primary);
+      padding: 1.5rem;
+    }
+
+    /* --- Diff Viewer Styles --- */
+    .diff-container {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.75rem;
+      line-height: 1.5;
+      white-space: pre;
+      min-width: max-content;
+    }
+
+    .diff-line {
+      display: flex;
+      width: 100%;
+      padding: 0 0.5rem;
+      border-left: 3px solid transparent;
+    }
+
+    .diff-line.addition {
+      background-color: var(--diff-add-bg);
+      border-left-color: var(--success-color);
+    }
+
+    .diff-line.deletion {
+      background-color: var(--diff-del-bg);
+      border-left-color: var(--danger-color);
+    }
+
+    .diff-line.header {
+      color: #7380f2;
+      font-weight: 500;
+      background-color: rgba(115, 128, 242, 0.04);
+    }
+
+    .diff-line.meta {
+      color: var(--warning-color);
+      background-color: rgba(245, 158, 11, 0.03);
+    }
+
+    /* --- Markdown Styles --- */
+    .markdown-body {
+      font-size: 0.875rem;
+      line-height: 1.6;
+      max-width: 56rem;
+      margin: 0 auto;
+      color: #d4d4d4;
+    }
+
+    .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+      margin-top: 0;
+      margin-bottom: 0.75rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .markdown-body h1 {
+      font-size: 1.125rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .markdown-body h2 {
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      font-family: 'Fira Code', monospace;
+    }
+
+    .markdown-body h3 {
+      font-size: 0.875rem;
+    }
+
+    .markdown-body p, .markdown-body ul, .markdown-body ol {
+      margin-bottom: 1rem;
+    }
+
+    .markdown-body ul, .markdown-body ol {
+      padding-left: 1.25rem;
+    }
+
+    .markdown-body li {
+      margin-bottom: 0.25rem;
+    }
+
+    .markdown-body code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8em;
+      background-color: var(--bg-secondary);
+      padding: 0.2rem 0.4rem;
+      border-radius: 2px;
+      color: #eaeaea;
+    }
+
+    .markdown-body pre {
+      background-color: var(--bg-secondary) !important;
+      border: 1px solid var(--border-color);
+      border-radius: 2px;
+      padding: 1rem;
+      overflow-x: auto;
+      margin-bottom: 1rem;
+    }
+
+    .markdown-body pre code {
+      background-color: transparent;
+      padding: 0;
+      font-size: 0.78rem;
+    }
+
+    .markdown-body blockquote {
+      border-left: 3px solid var(--border-hover);
+      padding-left: 1rem;
+      color: var(--text-muted);
+      font-style: italic;
+      margin-bottom: 1rem;
+    }
+
+    .review-section {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 2px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .review-section.decision-section {
+      border-left: 3px solid var(--accent-color);
+    }
+
+    .review-section.summary-section {
+      background-color: var(--bg-secondary);
+    }
+
+    .review-section.findings-section {
+      padding: 0;
+      background: transparent;
+      border: none;
+    }
+
+    .review-section.findings-section > h2 {
+      margin: 0 0 0.75rem 0;
+    }
+
+    .finding-card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-left: 3px solid var(--accent-color);
+      border-radius: 2px;
+      padding: 1rem;
+      margin-bottom: 0.875rem;
+    }
+
+    .finding-card.p0 {
+      border-left-color: var(--danger-color);
+    }
+
+    .finding-card.p1 {
+      border-left-color: #f97316;
+    }
+
+    .finding-card.p2 {
+      border-left-color: var(--warning-color);
+    }
+
+    .finding-card.p3 {
+      border-left-color: var(--text-muted);
+    }
+
+    .finding-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      margin-bottom: 0.875rem;
+      line-height: 1.35;
+    }
+
+    .severity-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2rem;
+      height: 1.2rem;
+      border-radius: 2px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: white;
+      flex: 0 0 auto;
+    }
+
+    .severity-badge.p0 { background-color: var(--danger-color); }
+    .severity-badge.p1 { background-color: #f97316; }
+    .severity-badge.p2 { background-color: var(--warning-color); color: #000000; }
+    .severity-badge.p3 { background-color: var(--border-hover); }
+
+    .finding-title {
+      color: var(--text-main);
+    }
+
+    .decision-section ul,
+    .finding-card ul {
+      list-style: none;
+      padding-left: 0;
+      margin-bottom: 0;
+    }
+
+    .decision-section li,
+    .finding-card li {
+      display: grid;
+      grid-template-columns: minmax(5.5rem, max-content) 1fr;
+      gap: 0.75rem;
+      padding: 0.35rem 0;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .decision-section li:first-child,
+    .finding-card li:first-child {
+      border-top: none;
+    }
+
+    .field-label {
+      color: var(--text-muted);
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-family: 'Fira Code', monospace;
+    }
+
+    .field-value {
+      font-size: 0.8125rem;
+    }
+
+    /* --- Placeholders --- */
+    .placeholder-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      color: var(--text-muted);
+      gap: 1rem;
+    }
+
+    .placeholder-view i {
+      width: 2rem;
+      height: 2rem;
+      stroke-width: 1px;
+    }
+
+    .placeholder-view p {
+      font-size: 0.8125rem;
+      font-family: 'Fira Code', monospace;
+    }
+
+    /* --- Loading Spinner --- */
+    .loader {
+      border: 2px solid var(--bg-tertiary);
+      border-top: 2px solid var(--accent-color);
+      border-radius: 50%;
+      width: 1.25rem;
+      height: 1.25rem;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header>
+    <div class="brand">
+      <i data-lucide="terminal" class="brand-logo"></i>
+      <span class="brand-title">Agentic PR Reviewer</span>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <div class="auth-badge" id="mcp-badge" style="cursor: pointer; display: none;">
+        <span class="indicator" id="mcp-indicator"></span>
+        <span id="mcp-text">MCP: Checking...</span>
+      </div>
+
+      <div id="auth-container">
+        <div class="auth-badge unauthenticated" id="auth-badge">
+          <span class="indicator"></span>
+          <span id="auth-text">Checking Auth...</span>
+          <button class="btn-login" id="btn-login" style="display: none;">
+            <i data-lucide="log-in" style="width: 14px; height: 14px;"></i> Sign In
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Control Panel -->
+  <div class="control-panel">
+    <!-- Repo selection -->
+    <div class="input-group">
+      <label for="repo-input">Repository</label>
+      <input type="text" id="repo-input" class="input-control" placeholder="owner/repo — type to search..." autocomplete="off">
+      <div class="autocomplete-list" id="repo-suggestions"></div>
+    </div>
+
+    <!-- PR selection -->
+    <div class="input-group">
+      <label for="pr-input">Pull Request</label>
+      <input type="text" id="pr-input" class="input-control" placeholder="Select a PR..." autocomplete="off" disabled>
+      <div class="autocomplete-list" id="pr-suggestions"></div>
+    </div>
+
+    <!-- Provider Selection -->
+    <div class="input-group">
+      <label for="provider-select">AI Provider</label>
+      <select id="provider-select" class="input-control select-control">
+        <option value="">Detecting CLIs...</option>
+      </select>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="input-group">
+      <label>Actions</label>
+      <div class="btn-group">
+        <button class="btn btn-secondary" id="btn-fetch" disabled>
+          <i data-lucide="download" style="width: 14px; height: 14px;"></i> Fetch
+        </button>
+        <button class="btn btn-primary" id="btn-review" disabled>
+          <i data-lucide="cpu" style="width: 14px; height: 14px;"></i> Review
+        </button>
+        <button class="btn btn-success" id="btn-post" disabled>
+          <i data-lucide="git-pull-request" style="width: 14px; height: 14px;"></i> Push
+        </button>
+      </div>
+    </div>
+
+    <!-- Status message -->
+    <div class="status-bar" id="status-msg">
+      Initializing application...
+    </div>
+  </div>
+
+  <!-- Main View Split -->
+  <div class="main-content">
+    <!-- Left Pane: Diff View -->
+    <div class="pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <i data-lucide="file-diff" style="width: 16px; height: 16px;"></i> Code Diff
+        </div>
+      </div>
+      <div class="pane-body" id="diff-body">
+        <div class="placeholder-view" id="diff-placeholder">
+          <i data-lucide="code"></i>
+          <p>No Pull Request loaded yet. Select a repo and PR to view the diff.</p>
+        </div>
+        <div class="diff-container" id="diff-content" style="display: none;"></div>
+      </div>
+    </div>
+
+    <!-- Right Pane: AI Review -->
+    <div class="pane">
+      <div class="pane-header">
+        <div class="pane-title">
+          <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Review Report
+        </div>
+        <button class="btn-login" id="btn-copy-review" style="display: none;">
+          <i data-lucide="copy" style="width: 14px; height: 14px;"></i> Copy Markdown
+        </button>
+      </div>
+      <div class="pane-body" id="review-body">
+        <div class="placeholder-view" id="review-placeholder">
+          <i data-lucide="message-square-code"></i>
+          <p>Once you fetch the diff, click "Review" to generate your agentic code review report.</p>
+        </div>
+        <div class="markdown-body" id="review-content" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Logic -->
+  <script>
+    // Elements
+    const authBadge = document.getElementById('auth-badge');
+    const authText = document.getElementById('auth-text');
+    const btnLogin = document.getElementById('btn-login');
+
+    const repoInput = document.getElementById('repo-input');
+    const repoSuggestions = document.getElementById('repo-suggestions');
+    const prInput = document.getElementById('pr-input');
+    const prSuggestions = document.getElementById('pr-suggestions');
+    const providerSelect = document.getElementById('provider-select');
+
+    const btnFetch = document.getElementById('btn-fetch');
+    const btnReview = document.getElementById('btn-review');
+    const btnPost = document.getElementById('btn-post');
+    const btnCopyReview = document.getElementById('btn-copy-review');
+    const statusMsg = document.getElementById('status-msg');
+
+    const diffPlaceholder = document.getElementById('diff-placeholder');
+    const diffContent = document.getElementById('diff-content');
+    const reviewPlaceholder = document.getElementById('review-placeholder');
+    const reviewContent = document.getElementById('review-content');
+    const initialDiffPlaceholderHtml = diffPlaceholder.innerHTML;
+    const initialReviewPlaceholderHtml = reviewPlaceholder.innerHTML;
+
+    let currentDiffText = '';
+    let currentReviewText = '';
+    let authenticatedUser = '';
+    let cachedRepos = [];
+    let cachedPrs = [];
+    let selectedRepo = '';
+    let repoSearchTimer = null;
+    let repoSearchSeq = 0;
+    let repoAutocompleteBound = false;
+    let prAutocompleteBound = false;
+    let availableProviders = [];
+
+    // Initialize lucide icons
+    lucide.createIcons();
+
+    // Set Status Message helper
+    function setStatus(msg, isError = false) {
+      statusMsg.innerHTML = isError ? `<span style="color: var(--danger-color)">${msg}</span>` : msg;
+    }
+
+    function isRepoName(value) {
+      return /^[^\s/]+\/[^\s/]+$/.test(value.trim());
+    }
+
+    function parsePrNumber(value) {
+      const match = value.trim().match(/^#?(\d+)/);
+      return match ? match[1] : '';
+    }
+
+    function resetLoadedPrState() {
+      currentDiffText = '';
+      currentReviewText = '';
+      btnReview.disabled = true;
+      btnPost.disabled = true;
+      btnCopyReview.style.display = 'none';
+      diffContent.innerHTML = '';
+      diffContent.style.display = 'none';
+      diffPlaceholder.innerHTML = initialDiffPlaceholderHtml;
+      diffPlaceholder.style.display = 'flex';
+      reviewContent.innerHTML = '';
+      reviewContent.style.display = 'none';
+      reviewPlaceholder.innerHTML = initialReviewPlaceholderHtml;
+      reviewPlaceholder.style.display = 'flex';
+      lucide.createIcons();
+    }
+
+    function resetPrSelection() {
+      cachedPrs = [];
+      prInput.value = '';
+      delete prInput.dataset.prNumber;
+      prInput.disabled = true;
+      prInput.placeholder = 'Select a repo first';
+      prSuggestions.style.display = 'none';
+      btnFetch.disabled = true;
+      resetLoadedPrState();
+    }
+
+    function selectRepo(repo, initPr = null) {
+      selectedRepo = repo.trim();
+      repoInput.value = selectedRepo;
+      repoSuggestions.style.display = 'none';
+      loadPRs(selectedRepo, initPr);
+    }
+
+    function syncManualPrInput() {
+      const prNumber = parsePrNumber(prInput.value);
+      if (prNumber && isRepoName(repoInput.value)) {
+        const previousPrNumber = prInput.dataset.prNumber;
+        if (currentDiffText && previousPrNumber && previousPrNumber !== prNumber) {
+          resetLoadedPrState();
+        }
+        prInput.dataset.prNumber = prNumber;
+        btnFetch.disabled = false;
+      } else {
+        delete prInput.dataset.prNumber;
+        btnFetch.disabled = true;
+      }
+    }
+
+    function selectedProviderLabel() {
+      const option = providerSelect.options[providerSelect.selectedIndex];
+      return option ? option.textContent : providerSelect.value;
+    }
+
+    async function loadProviders() {
+      try {
+        availableProviders = await pywebview.api.fetch_providers();
+      } catch (err) {
+        availableProviders = [];
+      }
+
+      providerSelect.innerHTML = '';
+
+      if (!availableProviders.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'No supported AI CLI found';
+        providerSelect.appendChild(option);
+        providerSelect.disabled = true;
+        btnReview.disabled = true;
+        setStatus('Install Claude CLI, agy, or Codex CLI to generate reviews', true);
+        return;
+      }
+
+      availableProviders.forEach(provider => {
+        const option = document.createElement('option');
+        option.value = provider.value;
+        option.textContent = provider.label;
+        providerSelect.appendChild(option);
+      });
+
+      providerSelect.disabled = false;
+      if (currentDiffText) {
+        btnReview.disabled = false;
+      }
+    }
+
+    // Check auth status
+    async function checkAuth() {
+      setStatus('Checking GitHub authentication...');
+      try {
+        const response = await pywebview.api.check_auth();
+        const { is_authed, username_or_error } = response;
+
+        if (is_authed) {
+          authenticatedUser = username_or_error;
+          authBadge.className = 'auth-badge authenticated';
+          authText.textContent = `Signed in as ${authenticatedUser}`;
+          btnLogin.style.display = 'none';
+          setStatus('Ready');
+          loadRepos();
+        } else {
+          authenticatedUser = '';
+          authBadge.className = 'auth-badge unauthenticated';
+          authText.textContent = 'Not signed in';
+          btnLogin.style.display = 'flex';
+          setStatus('Sign in to GitHub to continue', true);
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus('Error checking authentication', true);
+      }
+    }
+
+    // Poll check_auth until the interactive login completes (or attempts run out).
+    let authPollTimer = null;
+    function pollForAuth(attempts = 40) {
+      if (authPollTimer) clearTimeout(authPollTimer);
+      if (attempts <= 0) {
+        setStatus('Still not signed in. Click Sign in to try again.', true);
+        return;
+      }
+      authPollTimer = setTimeout(async () => {
+        try {
+          const resp = await pywebview.api.check_auth();
+          if (resp.is_authed) {
+            checkAuth();
+          } else {
+            pollForAuth(attempts - 1);
+          }
+        } catch (err) {
+          pollForAuth(attempts - 1);
+        }
+      }, 3000);
+    }
+
+    // Trigger Login
+    btnLogin.addEventListener('click', async () => {
+      setStatus('Launching GitHub login...');
+      try {
+        const response = await pywebview.api.trigger_login();
+        if (response.is_authed) {
+          checkAuth();
+        } else {
+          // Login runs interactively in a terminal and finishes asynchronously,
+          // so surface the instruction and poll until auth succeeds.
+          setStatus(response.username_or_error || 'Waiting for sign-in to complete...');
+          pollForAuth();
+        }
+      } catch (err) {
+        setStatus('Login trigger failed', true);
+      }
+    });
+
+    // Load Repos
+    async function loadRepos() {
+      try {
+        cachedRepos = await pywebview.api.fetch_repos();
+        setupRepoAutocomplete();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // Setup Repo Autocomplete
+    function setupRepoAutocomplete() {
+      if (repoAutocompleteBound) return;
+      repoAutocompleteBound = true;
+
+      repoInput.addEventListener('focus', () => {
+        showRepoSuggestions(repoInput.value);
+      });
+
+      repoInput.addEventListener('input', (e) => {
+        if (e.target.value.trim() !== selectedRepo) {
+          selectedRepo = '';
+          resetPrSelection();
+        }
+        showRepoSuggestions(e.target.value);
+      });
+
+      repoInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && isRepoName(repoInput.value)) {
+          e.preventDefault();
+          selectRepo(repoInput.value);
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!repoInput.contains(e.target) && !repoSuggestions.contains(e.target)) {
+          repoSuggestions.style.display = 'none';
+        }
+      });
+    }
+
+    function renderRepoSuggestions(repos) {
+      repoSuggestions.innerHTML = '';
+
+      repos.slice(0, 15).forEach(repo => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = repo;
+        item.addEventListener('click', () => {
+          selectRepo(repo);
+        });
+        repoSuggestions.appendChild(item);
+      });
+
+      repoSuggestions.style.display = repos.length > 0 ? 'block' : 'none';
+    }
+
+    function showRepoSuggestions(val) {
+      const query = val.trim().toLowerCase();
+      const matches = cachedRepos.filter(r => r.toLowerCase().includes(query));
+
+      if (!query) {
+        renderRepoSuggestions(matches);
+        return;
+      }
+
+      renderRepoSuggestions(matches);
+
+      if (query.length < 2) {
+        repoSuggestions.style.display = 'none';
+        return;
+      }
+
+      scheduleRemoteRepoSearch(query, matches);
+    }
+
+    function scheduleRemoteRepoSearch(query, localMatches) {
+      if (repoSearchTimer) {
+        clearTimeout(repoSearchTimer);
+      }
+
+      repoSearchTimer = setTimeout(async () => {
+        const seq = ++repoSearchSeq;
+
+        try {
+          const remoteMatches = await pywebview.api.search_repos(query);
+          const currentQuery = repoInput.value.trim().toLowerCase();
+
+          if (seq !== repoSearchSeq || currentQuery !== query) {
+            return;
+          }
+
+          const seen = new Set();
+          const combined = [];
+
+          [...localMatches, ...remoteMatches].forEach(repo => {
+            const key = repo.toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              combined.push(repo);
+            }
+          });
+
+          renderRepoSuggestions(combined);
+        } catch (err) {
+          if (localMatches.length === 0) {
+            repoSuggestions.style.display = 'none';
+          }
+        }
+      }, 250);
+    }
+
+    // Load PRs
+    async function loadPRs(repo, initPr = null) {
+      selectedRepo = repo;
+      setStatus(`Loading open PRs for ${repo}...`);
+      prInput.disabled = false;
+      if (initPr) {
+        prInput.value = `#${initPr}`;
+        prInput.dataset.prNumber = initPr;
+        btnFetch.disabled = false;
+      } else {
+        prInput.value = '';
+        delete prInput.dataset.prNumber;
+        prInput.placeholder = 'Type a PR number or wait for suggestions...';
+        btnFetch.disabled = true;
+      }
+      btnReview.disabled = true;
+
+      try {
+        const prs = await pywebview.api.fetch_prs(repo);
+        cachedPrs = prs;
+        prInput.disabled = false;
+        if (!initPr) {
+          prInput.placeholder = prs.length > 0 ? "Select or type a PR number..." : "Type a PR number...";
+        }
+
+        setupPrAutocomplete();
+        setStatus(
+            prs.length > 0
+              ? `Loaded ${prs.length} open PRs for ${repo}`
+              : `No open PRs listed for ${repo}; you can still type a PR number`
+          );
+
+        if (initPr) {
+          setTimeout(() => {
+            btnFetch.click();
+          }, 50);
+        }
+      } catch (err) {
+        setStatus(`Error loading PRs: ${err}`, true);
+      }
+    }
+
+    // Setup PR Autocomplete
+    function setupPrAutocomplete() {
+      if (prAutocompleteBound) return;
+      prAutocompleteBound = true;
+
+      prInput.addEventListener('focus', () => {
+        showPrSuggestions('');
+      });
+
+      prInput.addEventListener('click', () => {
+        showPrSuggestions('');
+      });
+
+      prInput.addEventListener('input', (e) => {
+        syncManualPrInput();
+        showPrSuggestions(e.target.value);
+      });
+
+      prInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          syncManualPrInput();
+          if (prInput.dataset.prNumber && !btnFetch.disabled) {
+            e.preventDefault();
+            btnFetch.click();
+          }
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!prInput.contains(e.target) && !prSuggestions.contains(e.target)) {
+          prSuggestions.style.display = 'none';
+        }
+      });
+    }
+
+    function showPrSuggestions(val) {
+      const query = val.trim().toLowerCase();
+      prSuggestions.innerHTML = '';
+
+      const matches = cachedPrs.filter(pr => {
+        const authorLogin = pr.author?.login || 'unknown';
+        const matchStr = `#${pr.number} ${pr.title} ${authorLogin}`.toLowerCase();
+        return matchStr.includes(query);
+      });
+
+      if (matches.length > 0) {
+        matches.forEach(pr => {
+          const authorLogin = pr.author?.login || 'unknown';
+          const item = document.createElement('div');
+          item.className = 'autocomplete-item';
+          if (String(pr.number) === prInput.dataset.prNumber) {
+            item.classList.add('selected');
+          }
+
+          const number = document.createElement('strong');
+          number.textContent = `#${pr.number}`;
+
+          const title = document.createElement('span');
+          title.textContent = ` - ${pr.title} `;
+
+          const author = document.createElement('span');
+          author.style.color = 'var(--text-muted)';
+          author.textContent = `(${authorLogin})`;
+
+          item.append(number, title, author);
+          item.addEventListener('click', () => {
+            const previousPrNumber = prInput.dataset.prNumber;
+            prInput.value = `#${pr.number} - ${pr.title}`;
+            prInput.dataset.prNumber = pr.number;
+            prSuggestions.style.display = 'none';
+            btnFetch.disabled = false;
+            if (currentDiffText && previousPrNumber && previousPrNumber !== String(pr.number)) {
+              resetLoadedPrState();
+              btnFetch.disabled = false;
+            }
+            setStatus(`PR #${pr.number} selected. Ready to fetch.`);
+          });
+          prSuggestions.appendChild(item);
+        });
+        prSuggestions.style.display = 'block';
+      } else {
+        prSuggestions.style.display = 'none';
+      }
+    }
+
+    // Fetch PR Diff
+    btnFetch.addEventListener('click', async () => {
+      const repo = repoInput.value.trim();
+      const prNum = prInput.dataset.prNumber || parsePrNumber(prInput.value);
+
+      if (!isRepoName(repo)) {
+        setStatus('Enter a repository as owner/repo first', true);
+        return;
+      }
+
+      if (!prNum) {
+        setStatus('Enter a PR number first', true);
+        return;
+      }
+
+      prInput.dataset.prNumber = prNum;
+
+      setStatus(`Fetching diff for PR #${prNum} from ${repo}...`);
+      diffPlaceholder.innerHTML = '<div class="loader"></div><p style="margin-top: 1rem;">Downloading unified diff from GitHub...</p>';
+      diffPlaceholder.style.display = 'flex';
+      diffContent.style.display = 'none';
+
+      btnFetch.disabled = true;
+      btnReview.disabled = true;
+      btnPost.disabled = true;
+
+      try {
+        const response = await pywebview.api.fetch_pr_details(repo, prNum);
+        if (response.success) {
+          const { title, author, additions, deletions, changedFiles, diff } = response.metadata;
+          currentDiffText = diff;
+
+          // Render diff
+          renderDiff(diff);
+
+          setStatus(`Fetched PR #${prNum}: "${title}" by @${author} (${additions} additions, ${deletions} deletions)`);
+          btnFetch.disabled = false;
+          btnReview.disabled = !providerSelect.value;
+        } else {
+          diffPlaceholder.innerHTML = `<i data-lucide="alert-circle" style="color: var(--danger-color)"></i><p style="margin-top: 1rem;">${response.error}</p>`;
+          lucide.createIcons();
+          setStatus(`Fetch failed: ${response.error}`, true);
+          btnFetch.disabled = false;
+        }
+      } catch (err) {
+        diffPlaceholder.innerHTML = `<i data-lucide="alert-circle" style="color: var(--danger-color)"></i><p style="margin-top: 1rem;">${err}</p>`;
+        lucide.createIcons();
+        setStatus(`Fetch failed: ${err}`, true);
+        btnFetch.disabled = false;
+      }
+    });
+
+    // Render Diff Lines
+    function renderDiff(diffText) {
+      diffPlaceholder.style.display = 'none';
+      diffContent.style.display = 'block';
+      diffContent.innerHTML = '';
+
+      if (!diffText || diffText.trim() === '') {
+        diffContent.innerHTML = '<div class="diff-line">Empty diff (no changes)</div>';
+        return;
+      }
+
+      const lines = diffText.split('\n');
+      const fragment = document.createDocumentFragment();
+
+      lines.forEach(line => {
+        const div = document.createElement('div');
+        div.className = 'diff-line';
+
+        // Escape HTML tags
+        const escaped = line
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+
+        div.innerHTML = escaped;
+
+        if (line.startsWith('+++') || line.startsWith('---')) {
+          div.classList.add('header');
+        } else if (line.startsWith('@@')) {
+          div.classList.add('meta');
+        } else if (line.startsWith('+')) {
+          div.classList.add('addition');
+        } else if (line.startsWith('-')) {
+          div.classList.add('deletion');
+        }
+
+        fragment.appendChild(div);
+      });
+
+      diffContent.appendChild(fragment);
+    }
+
+    function renderReviewMarkdown(markdownText) {
+      // The review body is AI output derived from untrusted PR content, so
+      // sanitize the rendered HTML before assigning it to innerHTML to prevent
+      // HTML/JS injection from executing inside the desktop WebView.
+      const rawHtml = marked.parse(markdownText);
+      reviewContent.innerHTML = DOMPurify.sanitize(rawHtml);
+      enhanceReviewContent(reviewContent);
+      Prism.highlightAllUnder(reviewContent);
+    }
+
+    function enhanceReviewContent(container) {
+      wrapReviewSections(container);
+      wrapFindingCards(container);
+      decorateFieldRows(container);
+    }
+
+    function wrapReviewSections(container) {
+      const headings = Array.from(container.children).filter(el => el.tagName === 'H2');
+
+      headings.forEach(heading => {
+        if (heading.parentElement !== container) return;
+
+        const title = heading.textContent.trim().toLowerCase();
+        const section = document.createElement('section');
+        section.className = 'review-section';
+
+        if (title.includes('decision')) {
+          section.classList.add('decision-section');
+        } else if (title.includes('finding')) {
+          section.classList.add('findings-section');
+        } else if (title.includes('summary')) {
+          section.classList.add('summary-section');
+        }
+
+        container.insertBefore(section, heading);
+
+        let node = heading;
+        while (node) {
+          const next = node.nextSibling;
+          if (node !== heading && node.nodeType === Node.ELEMENT_NODE && node.tagName === 'H2') {
+            break;
+          }
+          section.appendChild(node);
+          node = next;
+        }
+      });
+    }
+
+    function wrapFindingCards(container) {
+      const findingHeadings = Array.from(container.querySelectorAll('h3')).filter(heading => {
+        return /^\[(P[0-3])\]/i.test(heading.textContent.trim());
+      });
+
+      findingHeadings.forEach(heading => {
+        if (heading.closest('.finding-card')) return;
+
+        const match = heading.textContent.trim().match(/^\[(P[0-3])\]\s*(.*)$/i);
+        if (!match) return;
+
+        const severity = match[1].toLowerCase();
+        const title = match[2] || heading.textContent.trim();
+        const card = document.createElement('section');
+        card.className = `finding-card ${severity}`;
+
+        heading.parentElement.insertBefore(card, heading);
+        card.appendChild(heading);
+
+        const badge = document.createElement('span');
+        badge.className = `severity-badge ${severity}`;
+        badge.textContent = match[1].toUpperCase();
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'finding-title';
+        titleSpan.textContent = title;
+
+        heading.replaceChildren(badge, titleSpan);
+
+        let node = card.nextSibling;
+        while (node) {
+          const next = node.nextSibling;
+          if (node.nodeType === Node.ELEMENT_NODE && ['H2', 'H3'].includes(node.tagName)) {
+            break;
+          }
+          card.appendChild(node);
+          node = next;
+        }
+      });
+    }
+
+    function decorateFieldRows(container) {
+      const fieldPattern = /^(Status|Risk|Main reason|File|Evidence|Impact|Fix):\s*/i;
+
+      container.querySelectorAll('li').forEach(item => {
+        if (item.querySelector('.field-label')) return;
+
+        const match = item.textContent.trim().match(fieldPattern);
+        if (!match) return;
+
+        const label = match[1];
+        const labelEl = document.createElement('span');
+        labelEl.className = 'field-label';
+        labelEl.textContent = label;
+
+        const valueEl = document.createElement('span');
+        valueEl.className = 'field-value';
+
+        const nodes = Array.from(item.childNodes);
+        const firstTextNode = nodes.find(node => {
+          return node.nodeType === Node.TEXT_NODE && node.textContent.includes(':');
+        });
+
+        if (firstTextNode) {
+          firstTextNode.textContent = firstTextNode.textContent.replace(fieldPattern, '');
+        }
+
+        nodes.forEach(node => valueEl.appendChild(node));
+        item.replaceChildren(labelEl, valueEl);
+      });
+    }
+
+    // Trigger AI Review
+    btnReview.addEventListener('click', async () => {
+      const provider = providerSelect.value;
+
+      if (!currentDiffText) return;
+      if (!provider) {
+        setStatus('Choose an available AI provider first', true);
+        return;
+      }
+
+      const providerLabel = selectedProviderLabel();
+      setStatus(`Analysing diff with ${providerLabel}... This can take up to a minute.`);
+      reviewPlaceholder.innerHTML = `<div class="loader"></div><p style="margin-top: 1rem;">Invoking ${providerLabel}...</p>`;
+      reviewPlaceholder.style.display = 'flex';
+      reviewContent.style.display = 'none';
+
+      btnFetch.disabled = true;
+      btnReview.disabled = true;
+      btnPost.disabled = true;
+      btnCopyReview.style.display = 'none';
+
+      try {
+        const response = await pywebview.api.generate_review(currentDiffText, provider);
+        if (response.success) {
+          currentReviewText = response.review;
+
+          // Render markdown
+          reviewPlaceholder.style.display = 'none';
+          reviewContent.style.display = 'block';
+          renderReviewMarkdown(currentReviewText);
+
+          setStatus(`Review generation complete!`);
+          btnFetch.disabled = false;
+          btnReview.disabled = false;
+          btnPost.disabled = false;
+          btnCopyReview.style.display = 'flex';
+        } else {
+          reviewPlaceholder.innerHTML = `<i data-lucide="alert-circle" style="color: var(--danger-color)"></i><p style="margin-top: 1rem;">${response.error}</p>`;
+          lucide.createIcons();
+          setStatus(`Review failed: ${response.error}`, true);
+          btnFetch.disabled = false;
+          btnReview.disabled = false;
+        }
+      } catch (err) {
+        reviewPlaceholder.innerHTML = `<i data-lucide="alert-circle" style="color: var(--danger-color)"></i><p style="margin-top: 1rem;">${err}</p>`;
+        lucide.createIcons();
+        setStatus(`Review failed: ${err}`, true);
+        btnFetch.disabled = false;
+        btnReview.disabled = false;
+      }
+    });
+
+    // Copy Review
+    btnCopyReview.addEventListener('click', () => {
+      navigator.clipboard.writeText(currentReviewText);
+      setStatus('Review report copied to clipboard!');
+      setTimeout(() => {
+        setStatus('Ready');
+      }, 3000);
+    });
+
+    // Post to GitHub
+    btnPost.addEventListener('click', async () => {
+      const repo = repoInput.value.trim();
+      const prNum = prInput.dataset.prNumber;
+
+      if (!currentReviewText || !repo || !prNum) return;
+
+      if (!confirm('Are you sure you want to publish this review comment directly to GitHub?')) {
+        return;
+      }
+
+      setStatus(`Publishing review to GitHub PR #${prNum}...`);
+      btnFetch.disabled = true;
+      btnReview.disabled = true;
+      btnPost.disabled = true;
+
+      try {
+        const response = await pywebview.api.post_review(repo, prNum, currentReviewText);
+        if (response.success) {
+          setStatus('✔ Review successfully published to GitHub!');
+        } else {
+          setStatus(`Posting failed: ${response.error}`, true);
+        }
+      } catch (err) {
+        setStatus(`Posting failed: ${err}`, true);
+      } finally {
+        btnFetch.disabled = false;
+        btnReview.disabled = false;
+        btnPost.disabled = false;
+      }
+    });
+
+    // MCP Configuration Elements
+    const mcpBadge = document.getElementById('mcp-badge');
+    const mcpIndicator = document.getElementById('mcp-indicator');
+    const mcpText = document.getElementById('mcp-text');
+
+    async function checkMcpStatus() {
+      try {
+        const response = await pywebview.api.check_mcp_config();
+        mcpBadge.style.display = 'flex';
+        if (response.configured) {
+          mcpIndicator.style.backgroundColor = 'var(--success-color)';
+          mcpText.textContent = 'MCP: Configured';
+          mcpBadge.title = `MCP Server is configured in Claude Desktop.\nPath: ${response.path}\nCommand: ${response.command}`;
+          mcpBadge.style.cursor = 'default';
+        } else {
+          mcpIndicator.style.backgroundColor = 'var(--warning-color)';
+          mcpText.textContent = 'Setup MCP';
+          mcpBadge.title = 'Click to configure this tool as an MCP server in Claude Desktop.';
+          mcpBadge.style.cursor = 'pointer';
+        }
+      } catch (err) {
+        console.error("Error checking MCP config status:", err);
+      }
+    }
+
+    mcpBadge.addEventListener('click', async () => {
+      if (mcpText.textContent === 'Setup MCP') {
+        if (!confirm('Configure this PR Reviewer as an MCP Server in Claude Desktop?')) {
+          return;
+        }
+        setStatus('Configuring MCP Server...');
+        try {
+          const response = await pywebview.api.setup_mcp_config();
+          if (response.success) {
+            setStatus('✔ MCP Server successfully configured for Claude Desktop!');
+            checkMcpStatus();
+          } else {
+            setStatus(`MCP configuration failed: ${response.error}`, true);
+            alert(`Configuration failed: ${response.error}`);
+          }
+        } catch (err) {
+          setStatus(`MCP configuration failed: ${err}`, true);
+          alert(`Configuration failed: ${err}`);
+        }
+      }
+    });
+
+    // pywebview loaded entrypoint
+    window.addEventListener('pywebviewready', async () => {
+      loadProviders();
+      checkAuth();
+      checkMcpStatus();
+
+      // Handle deep linking / startup arguments
+      try {
+        const initArgs = await pywebview.api.get_init_args();
+        if (initArgs && initArgs.repo) {
+          selectRepo(initArgs.repo, initArgs.pr);
+        }
+      } catch (err) {
+        console.error("Error loading init args:", err);
+      }
+    });
+  </script>
+</body>
+</html>

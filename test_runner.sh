@@ -71,7 +71,7 @@ fi
 # ─── Test 6: Provider flag accepts both values ─────────────────────────
 info "Test 6: --provider flag validates input"
 OUTPUT=$(python gh_pr_reviewer/main.py --help 2>&1)
-if echo "$OUTPUT" | grep -q "claude|antigravity"; then
+if echo "$OUTPUT" | grep -q "claude|antigravity|codex"; then
     pass "--provider enum shown in help"
 else
     fail "--provider enum — got: $OUTPUT"
