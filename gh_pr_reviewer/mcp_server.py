@@ -213,8 +213,13 @@ def create_server():
         app_bundle = os.path.join(project_dir, "dist", "PRReviewer.app")
 
         if os.path.exists(app_bundle) and sys.platform == "darwin":
-            binary_path = os.path.join(app_bundle, "Contents", "MacOS", "PRReviewer")
-            cmd = [binary_path, "--repo", repo, "--pr", str(pr_number)]
+            # Launch through LaunchServices (`open`) rather than exec'ing the
+            # inner binary directly. A direct exec bypasses LaunchServices, so
+            # the Dock shows a generic/Python icon instead of the bundle's
+            # AppIcon. `-n` forces a fresh instance so the `--args` are still
+            # delivered even when the app is already running (the gap that the
+            # earlier bare `open --args` approach hit).
+            cmd = ["open", "-n", app_bundle, "--args", "--repo", repo, "--pr", str(pr_number)]
         else:
             python_exe = sys.executable or os.path.join(project_dir, ".venv", "bin", "python")
             gui_script = os.path.join(project_dir, "gh_pr_reviewer", "gui.py")
