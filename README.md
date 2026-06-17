@@ -6,9 +6,9 @@
 
 
 
-An AI-powered GitHub Pull Request reviewer. It ships four ways to review a PR — a visual **Desktop GUI App** (macOS DMG), an **Interactive TUI Dashboard**, a **CLI**, and an **MCP Server** — all driven by the local AI agents you already have installed (`claude`, `agy`, or `codex`).
+An AI-powered GitHub Pull Request reviewer. It ships four ways to review a PR: a visual **Desktop GUI App** (macOS DMG), an **Interactive TUI Dashboard**, a **CLI**, and an **MCP Server**, all driven by the local AI agents you already have installed (`claude`, `agy`, or `codex`).
 
-Fetch PRs, view formatted diffs, generate comprehensive reviews with local AI, and post comments straight back to GitHub — without ever handling raw API keys.
+Fetch PRs, view formatted diffs, generate comprehensive reviews with local AI, and post comments straight back to GitHub without ever handling raw API keys.
 
 ## Demo
 https://github.com/user-attachments/assets/1d173ea8-328f-497e-93bd-4ab456627fef
