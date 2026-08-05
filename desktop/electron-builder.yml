@@ -12,18 +12,15 @@ files:
   - dist-electron/**
   - package.json
 
-# The Python engine is not bundled by default. The app looks for it in this
-# order: PR_REVIEWER_PYTHON, Resources/backend/.venv/bin/python, the repository
-# checkout, then a system python3. To ship a self-contained app, copy the
-# repository (with its .venv) to `backend/` next to this file and uncomment the
-# block below.
-# extraResources:
-#   - from: backend
-#     to: backend
-#     filter:
-#       - '**/*'
-#       - '!**/__pycache__'
-#       - '!**/*.pyc'
+# The frozen Python engine ships inside the app, so the host needs no Python.
+# Build it first with `npm run build:backend`.
+extraResources:
+  - from: ../packaging/backend-dist/pr-reviewer-api
+    to: backend
+    filter:
+      - '**/*'
+      - '!**/__pycache__'
+      - '!**/*.pyc'
 
 mac:
   category: public.app-category.developer-tools

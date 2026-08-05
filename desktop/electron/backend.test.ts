@@ -72,6 +72,21 @@ describe('resolvePythonLocation', () => {
     expect(location?.cwd).toBe(bundled);
   });
 
+  it('runs the frozen backend when there is no Python on the host', () => {
+    const bundled = '/Applications/PR.app/Contents/Resources/backend';
+    const location = resolvePythonLocation({
+      ...base,
+      appPath: '/Applications/PR.app/Contents/Resources/app.asar',
+      isPackaged: true,
+      exists: (target) => target === `${bundled}/pr-reviewer-api`,
+    });
+    expect(location).toEqual({
+      command: `${bundled}/pr-reviewer-api`,
+      args: [],
+      cwd: bundled,
+    });
+  });
+
   it('honours PR_REVIEWER_PYTHON', () => {
     const location = resolvePythonLocation({
       ...base,

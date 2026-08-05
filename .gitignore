@@ -38,6 +38,9 @@ wheels/
 # Packaging build outputs
 packaging/dist/
 packaging/dmg_stage/
+packaging/backend-dist/
+packaging/backend-build/
+packaging/pr-reviewer-api.spec
 
 # Electron desktop app
 desktop/node_modules/

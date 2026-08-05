@@ -105,6 +105,9 @@ const MAX_ANCESTORS = 4;
 /** The console script `pip install` creates for the backend. */
 const CONSOLE_SCRIPT = 'pr-reviewer-api';
 
+/** The frozen backend binary a packaged app ships in `Resources/backend`. */
+const FROZEN_BACKEND = 'pr-reviewer-api';
+
 /** Directories a macOS GUI app must search, because it inherits no login PATH. */
 const COMMON_BIN_DIRS = ['/.local/bin', '/bin', '/.npm-global/bin'];
 
@@ -133,10 +136,11 @@ function findConsoleScript(env: NodeJS.ProcessEnv, exists: (target: string) => b
  * depth inside the checkout. Search order:
  *
  * 1. `PR_REVIEWER_PYTHON` if the user set it.
- * 2. A backend copied next to the packaged app (`Resources/backend`).
- * 3. The repository checkout that contains this Electron app.
- * 4. A `pr-reviewer-api` console script from a `pip install`.
- * 5. A system `python3` next to a checkout.
+ * 2. The frozen backend binary in `Resources/backend`, which needs no Python.
+ * 3. A backend source copy next to the packaged app (`Resources/backend`).
+ * 4. The repository checkout that contains this Electron app.
+ * 5. A `pr-reviewer-api` console script from a `pip install`.
+ * 6. A system `python3` next to a checkout.
  */
 export function resolvePythonLocation(options: ResolveOptions): PythonLocation | null {
   const exists = options.exists ?? existsSync;
@@ -161,6 +165,12 @@ export function resolvePythonLocation(options: ResolveOptions): PythonLocation |
   const override = options.env.PR_REVIEWER_PYTHON;
   if (override && exists(override)) {
     return { command: override, args: MODULE_ARGS, cwd: engineRoots[0] ?? appDir };
+  }
+
+  // A packaged app ships a frozen backend, so it needs no Python on the host.
+  const frozen = path.join(bundled, FROZEN_BACKEND);
+  if (exists(frozen)) {
+    return { command: frozen, args: [], cwd: bundled };
   }
 
   for (const root of engineRoots) {

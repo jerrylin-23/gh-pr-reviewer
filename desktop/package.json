@@ -15,7 +15,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "package": "npm run build && electron-builder --mac dmg",
+    "build:backend": "bash ../packaging/build_backend.sh",
+    "package": "npm run build:backend && npm run build && electron-builder --mac dmg",
     "start": "electron .",
     "smoke": "node scripts/smoke.mjs"
   },
