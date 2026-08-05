@@ -104,7 +104,8 @@ REVIEW_PROMPT = textwrap.dedent("""\
 
 SUPPORTED_PROVIDER_COMMANDS = {
     Provider.claude: ["claude", "--print", "--output-format", "text"],
-    Provider.antigravity: ["agy", "--print", "--print-timeout", "5m"],
+    # `agy --print` takes the prompt as its value, so it never reads stdin.
+    Provider.antigravity: ["agy", "--print-timeout", "5m", "--print"],
     Provider.codex: [
         "codex", "exec",
         "--skip-git-repo-check",
@@ -116,6 +117,9 @@ SUPPORTED_PROVIDER_COMMANDS = {
         "-",
     ],
 }
+
+#: Providers whose CLI takes the prompt as an argument, not on stdin.
+PROMPT_AS_ARGUMENT = {Provider.antigravity}
 
 COMMON_CLI_DIRS = [
     os.path.expanduser("~/.local/bin"),
@@ -362,9 +366,17 @@ def _run_ai_cli(provider: Provider, prompt: str) -> str:
             raise typer.Exit(code=1)
 
         cmd = [executable, *configured_cmd[1:]]
+
+        # Most CLIs read the prompt from stdin. Some take it as the last argument.
+        if provider in PROMPT_AS_ARGUMENT:
+            cmd.append(prompt)
+            stdin_text = None
+        else:
+            stdin_text = prompt
+
         result = subprocess.run(
             cmd, capture_output=True, text=True, check=True, timeout=300,
-            input=prompt,
+            input=stdin_text,
         )
         output = result.stdout.strip()
         output = extract_review_markdown(output)

@@ -100,9 +100,13 @@ PROVIDERS = [
     ("Codex CLI", "codex"),
 ]
 
+#: Providers whose CLI takes the prompt as an argument, not on stdin.
+PROMPT_AS_ARGUMENT = {"antigravity"}
+
 SUPPORTED_PROVIDER_COMMANDS = {
     "claude": ["claude", "--print", "--output-format", "text"],
-    "antigravity": ["agy", "--print", "--print-timeout", "5m"],
+    # `agy --print` takes the prompt as its value, so it never reads stdin.
+    "antigravity": ["agy", "--print-timeout", "5m", "--print"],
     "codex": [
         "codex", "exec",
         "--skip-git-repo-check",
@@ -575,10 +579,17 @@ Here are the reviews from the council members:
         return False, f"{provider} CLI not found. Expected executable: {configured_cmd[0]}"
     cmd = [executable, *configured_cmd[1:]]
 
+    # Most CLIs read the prompt from stdin. Some take it as the last argument.
+    if provider in PROMPT_AS_ARGUMENT:
+        cmd.append(full_prompt)
+        stdin_text = None
+    else:
+        stdin_text = full_prompt
+
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, check=True, timeout=300,
-            input=full_prompt,
+            input=stdin_text,
         )
         output = result.stdout.strip()
         if not output:

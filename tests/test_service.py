@@ -211,3 +211,42 @@ def test_council_synthesis_failure_appends_individual_reviews(monkeypatch):
 
 def test_valid_provider_values():
     assert service.VALID_PROVIDER_VALUES == {"claude", "antigravity", "codex", "council"}
+
+
+class _FakeCompleted:
+    def __init__(self, stdout: str) -> None:
+        self.stdout = stdout
+        self.stderr = ""
+        self.returncode = 0
+
+
+def _capture_cli_call(monkeypatch, provider: str) -> dict:
+    """Run call_ai_cli with a stubbed subprocess and return what it was given."""
+    captured: dict = {}
+
+    def fake_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["input"] = kwargs.get("input")
+        return _FakeCompleted("## Decision\n- Status: `Ready`")
+
+    monkeypatch.setattr(service, "resolve_executable", lambda name: f"/usr/local/bin/{name}")
+    monkeypatch.setattr("subprocess.run", fake_run)
+    ok, _ = service.call_ai_cli(provider, "a diff")
+    assert ok is True
+    return captured
+
+
+def test_antigravity_takes_the_prompt_as_an_argument(monkeypatch):
+    # `agy --print` reads its value, not stdin. A piped prompt is ignored and
+    # the next flag becomes the prompt instead.
+    captured = _capture_cli_call(monkeypatch, "antigravity")
+    assert captured["input"] is None
+    assert captured["cmd"][-2] == "--print"
+    assert "a diff" in captured["cmd"][-1]
+
+
+def test_claude_still_receives_the_prompt_on_stdin(monkeypatch):
+    captured = _capture_cli_call(monkeypatch, "claude")
+    assert captured["input"] is not None
+    assert "a diff" in captured["input"]
+    assert not any("a diff" in part for part in captured["cmd"])

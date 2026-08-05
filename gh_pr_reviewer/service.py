@@ -351,7 +351,9 @@ SUPPORTED_PROVIDERS = {
     },
     "antigravity": {
         "label": "Antigravity CLI",
-        "command": ["agy", "--print", "--print-timeout", "5m"],
+        # `agy --print` takes the prompt as its value, so it never reads stdin.
+        "command": ["agy", "--print-timeout", "5m", "--print"],
+        "prompt_via": "arg",
     },
     "codex": {
         "label": "Codex CLI",
@@ -444,10 +446,17 @@ def call_ai_cli(provider: str, diff_text: str, wrap: bool = True) -> tuple[bool,
         return False, f"{provider} CLI not found. Expected executable: {configured_cmd[0]}"
     cmd = [executable, *configured_cmd[1:]]
 
+    # Most CLIs read the prompt from stdin. Some take it as the last argument.
+    if SUPPORTED_PROVIDERS[provider].get("prompt_via") == "arg":
+        cmd.append(full_prompt)
+        stdin_text = None
+    else:
+        stdin_text = full_prompt
+
     try:
         result = subprocess.run(
             cmd, capture_output=True, text=True, check=True, timeout=300,
-            input=full_prompt,
+            input=stdin_text,
         )
         output = result.stdout.strip()
         if not output:
