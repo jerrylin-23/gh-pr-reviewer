@@ -37,6 +37,10 @@ mac:
   # yet. Without them macOS shows a Gatekeeper warning on first launch.
   identity: null
 
+# The app is ad-hoc signed after packing. macOS on Apple silicon refuses to
+# start a bundle that has no valid signature.
+afterPack: scripts/adhoc-sign.mjs
+
 dmg:
   title: PR Reviewer
   contents:
