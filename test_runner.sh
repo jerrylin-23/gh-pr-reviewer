@@ -86,6 +86,23 @@ else
     fail "Invalid provider rejected — got: $OUTPUT"
 fi
 
+# ─── Test 8: Shared service and local API import cleanly ───────────────
+info "Test 8: service.py and api_server.py import without errors"
+if python -c "from gh_pr_reviewer import api_server, service; api_server.create_app('x'*40)" 2>&1; then
+    pass "service.py and api_server.py import"
+else
+    fail "service.py and api_server.py import"
+fi
+
+# ─── Test 9: The local API refuses to start without a token ─────────────
+info "Test 9: local API requires PR_REVIEWER_API_TOKEN"
+OUTPUT=$(PR_REVIEWER_API_TOKEN= python -c "from gh_pr_reviewer import api_server; api_server.read_token_from_env({})" 2>&1 || true)
+if echo "$OUTPUT" | grep -qi "PR_REVIEWER_API_TOKEN"; then
+    pass "Missing API token rejected"
+else
+    fail "Missing API token rejected — got: $OUTPUT"
+fi
+
 divider
 echo ""
 echo "🧪 All unit smoke tests complete."

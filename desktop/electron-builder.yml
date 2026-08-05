@@ -1,0 +1,48 @@
+appId: com.ghprreviewer.desktop
+productName: PR Reviewer
+copyright: MIT
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the built output ships. Sources, tests, and node_modules stay out.
+files:
+  - dist/**
+  - dist-electron/**
+  - package.json
+
+# The Python engine is not bundled by default. The app looks for it in this
+# order: PR_REVIEWER_PYTHON, Resources/backend/.venv/bin/python, the repository
+# checkout, then a system python3. To ship a self-contained app, copy the
+# repository (with its .venv) to `backend/` next to this file and uncomment the
+# block below.
+# extraResources:
+#   - from: backend
+#     to: backend
+#     filter:
+#       - '**/*'
+#       - '!**/__pycache__'
+#       - '!**/*.pyc'
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  icon: ../packaging/assets/AppIcon.icns
+  darkModeSupport: true
+  # Code signing and notarization are release requirements that are not set up
+  # yet. Without them macOS shows a Gatekeeper warning on first launch.
+  identity: null
+
+dmg:
+  title: PR Reviewer
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications

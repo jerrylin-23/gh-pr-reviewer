@@ -14,6 +14,15 @@ dependencies = [
     "textual>=1.0.0",
     "pywebview>=5.0",
     "mcp>=1.0.0",
+    "starlette>=0.37.0",
+    "uvicorn>=0.30.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.6.0",
+    "httpx>=0.27.0",
 ]
 
 [project.scripts]
@@ -21,10 +30,21 @@ pr-reviewer = "gh_pr_reviewer.main:app"
 pr-reviewer-tui = "gh_pr_reviewer.tui:run_tui"
 pr-reviewer-gui = "gh_pr_reviewer.gui:run_gui"
 pr-reviewer-mcp = "gh_pr_reviewer.mcp_server:run"
+pr-reviewer-api = "gh_pr_reviewer.api_server:main"
 
 [tool.setuptools]
 packages = ["gh_pr_reviewer"]
 
 [tool.setuptools.package-data]
 gh_pr_reviewer = ["index.html"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+extend-exclude = [".venv", "build", "dist", "graphify-out", "desktop"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
 
